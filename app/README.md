@@ -1,33 +1,29 @@
-# DHRW Prüfprotokoll – Test-Build (PWA)
+# DHRW Prüfprotokoll (PWA)
 
-Offline-fähige Web-App zum Ausfüllen des Prüfprotokolls. Das Ergebnis ist das
-originale `template.pdf`, befüllt mit allen Eingaben, Fotos und Unterschriften.
+Offline-fähige Web-App zum Ausfüllen des Treppen-Prüfprotokolls. Die Eingaben
+werden Schritt für Schritt abgefragt; am Ende entsteht ein PDF im Design der
+Vorlage (`../DHRW_Pruefprotokoll_Tablet 01.pdf`).
 
-## Auf Android testen (schnellster Weg)
+## Aufbau
 
-1. Auf https://app.netlify.com/drop den ganzen Ordner `app` in das Browserfenster ziehen.
-2. Die angezeigte `https://…netlify.app`-Adresse in **Chrome auf dem Android-Gerät** öffnen.
-3. Chrome-Menü (⋮) → **App installieren** / **Zum Startbildschirm hinzufügen**.
-4. App einmal online öffnen, danach funktioniert sie auch im Flugmodus.
+- `index.html`, `styles.css`, `app.js` – Oberfläche (Startseite mit allen Prüfungen, geführte Schritte)
+- `fields.js` – Prüfpunkte, Auswahllisten und Texte des Protokolls
+- `export-pdf.js` – zeichnet das PDF komplett selbst (Zeilen wachsen mit dem Text, lange Texte laufen auf die nächste Seite, Fotos groß)
+- `db.js` – Speicherung auf dem Gerät (IndexedDB); Fotos werden auf ca. 1800 px verkleinert
+- `sw.js`, `manifest.webmanifest`, `icon-*.png` – Offline-Cache und Installation
+- `pdf-lib.min.js` – PDF-Bibliothek (lokal eingebunden, damit sie offline verfügbar ist)
+- `template.pdf` – wird seit Version 2 nicht mehr benötigt
 
-HTTPS ist Pflicht: Service Worker, Kamera-Zugriff und Installation funktionieren
-nicht über `http://` oder als lokal geöffnete Datei.
+## Änderungen veröffentlichen
 
-## Lokal am Rechner
+Nach jeder Änderung an den Dateien `VERSION` in `sw.js` erhöhen. Sonst behalten
+installierte Geräte die alte Version. Beim nächsten Öffnen mit Internet erscheint
+dann der Hinweis „Neue Version bereit“.
+
+## Lokal testen
 
     cd app
     python3 -m http.server 8000
 
-Dann `http://localhost:8000` im Browser öffnen (localhost gilt als sicher).
-
-## Dateien
-
-- `index.html`, `styles.css`, `app.js` – Oberfläche, Liste der Prüfungen, Formular
-- `fields.js` – Abschnitte und Feldnamen (identisch mit den Formularfeldern im PDF)
-- `export-pdf.js` – befüllt `template.pdf`, setzt Fotos/Unterschriften ein, flacht ab
-- `db.js` – Speicherung im Browser (IndexedDB), Fotos werden auf ~1600 px verkleinert
-- `sw.js`, `manifest.webmanifest`, `icon-*.png` – Offline-Cache und Installation
-- `pdf-lib.min.js` – PDF-Bibliothek (lokal, damit offline verfügbar)
-
-Nach Änderungen an Dateien `VERSION` in `sw.js` erhöhen, sonst behalten
-installierte Geräte die alte Version.
+Dann `http://localhost:8000` öffnen. Mit `?demo` am Ende der Adresse erscheint auf
+der Startseite ein Knopf, der eine Beispielprüfung anlegt.

@@ -1,7 +1,6 @@
-// Form definition. Every `name` is the field name in template.pdf, so export
-// is a direct lookup. Choice values are the PDF's on-state names.
+// Inhalt des Protokolls. Wird von der Oberfläche (app.js) und vom PDF-Bau (export-pdf.js) genutzt.
 
-const CHECKPOINTS = [
+export const CHECKPOINTS = [
   'Treppenstufen vollständig und sicher begehbar',
   'Stufen ohne Beschädigungen oder Stolperstellen',
   'Treppenlauf standsicher, keine erkennbaren Verformungen',
@@ -28,7 +27,7 @@ const CHECKPOINTS = [
   'Zugang zur Treppe jederzeit möglich',
 ];
 
-const GRUNDLAGEN = [
+export const GRUNDLAGEN = [
   'DIN 18065 - Gebäudetreppen',
   'DIN EN 1090 - Ausführung von Stahltragwerken',
   'Arbeitsstättenverordnung (ArbStättV)',
@@ -39,111 +38,51 @@ const GRUNDLAGEN = [
   'bauordnungsrechtliche Vorgaben / genehmigte Planunterlagen',
 ];
 
-const STATUS = [['io', 'i. O.'], ['mangel', 'Mangel'], ['na', 'n. a.']];
-const PRIO = [['hoch', 'hoch'], ['mittel', 'mittel'], ['niedrig', 'niedrig']];
+export const TREPPENTYP = [['flucht', 'Fluchttreppe'], ['rettung', 'Rettungswegtreppe'], ['sicher', 'Sicherheitstreppe']];
+export const BAUART = [['stahl', 'Stahl'], ['stahlbeton', 'Stahlbeton'], ['sonstige', 'Sonstige']];
+export const STATUS = [['io', 'In Ordnung'], ['mangel', 'Mangel'], ['na', 'Trifft nicht zu']];
+export const PRIO = [['hoch', 'Hoch'], ['mittel', 'Mittel'], ['niedrig', 'Niedrig']];
 
-export const SECTIONS = [
-  {
-    title: '1 · Allgemeine Angaben',
-    items: [
-      { type: 'text', name: 'dokument_nr', label: 'Dokument-Nr.' },
-      { type: 'text', name: 'revision', label: 'Revision' },
-      { type: 'date', name: 'pruefdatum', label: 'Prüfdatum' },
-      { type: 'text', name: 'pruefer', label: 'Prüfer' },
-      { type: 'text', name: 'objekt', label: 'Objekt' },
-      { type: 'text', name: 'gebaeude_bereich', label: 'Gebäude / Bereich' },
-      { type: 'text', name: 'standort', label: 'Standort' },
-      { type: 'text', name: 'treppen_nr', label: 'Treppen-Nr.' },
-      { type: 'radio', name: 'treppentyp', label: 'Treppentyp',
-        options: [['flucht', 'Fluchttreppe'], ['rettung', 'Rettungswegtreppe'], ['sicher', 'Sicherheitstreppe']] },
-      { type: 'radio', name: 'bauart', label: 'Bauart',
-        options: [['stahl', 'Stahl'], ['stahlbeton', 'Stahlbeton'], ['sonstige', 'Sonstige']] },
-      { type: 'text', name: 'bauart_sonstige', label: 'Bauart sonstige' },
-      { type: 'text', name: 'anwesende_personen', label: 'Anwesende Personen' },
-      { type: 'textarea', name: 'grundlagen_zusatz', label: 'Prüfhinweis – Ergänzung' },
-    ],
-  },
-  {
-    title: '2 · Prüfgrundlagen',
-    items: [
-      ...GRUNDLAGEN.map((label, i) => ({ type: 'check', name: `grundlage_${i + 1}`, label })),
-      { type: 'textarea', name: 'grundlagen_frei', label: 'Weitere Grundlagen / objektspezifische Festlegungen' },
-    ],
-  },
-  {
-    title: '3 · Sicht- und Funktionsprüfung',
-    items: CHECKPOINTS.map((label, i) => ({
-      type: 'checkpoint', nr: i + 1, label,
-      status: `pruefstatus_${i + 1}`, remark: `bemerkung_${i + 1}`, options: STATUS,
-    })),
-  },
-  {
-    title: '4 · Festgestellte Mängel',
-    items: [1, 2, 3, 4, 5].map((n) => ({
-      type: 'group', label: `Mangel ${n}`, items: [
-        { type: 'textarea', name: `mangel_${n}`, label: 'Feststellung / Mangel' },
-        { type: 'radio', name: `prioritaet_${n}`, label: 'Priorität', options: PRIO },
-        { type: 'textarea', name: `massnahme_${n}`, label: 'Erforderliche Maßnahme' },
-        { type: 'text', name: `verantwortlich_${n}`, label: 'Verantwortlich' },
-        { type: 'date', name: `termin_${n}`, label: 'Termin' },
-      ],
-    })),
-  },
-  {
-    title: '5 · Fotodokumentation',
-    items: [1, 2, 3, 4, 5, 6].map((n) => ({
-      type: 'photo', slot: `photo_${n}`, label: `Foto ${n}`,
-      items: [
-        { type: 'text', name: `foto_bereich_${n}`, label: 'Bereich' },
-        { type: 'text', name: `foto_bemerkung_${n}`, label: 'Bemerkung' },
-      ],
-    })),
-  },
-  {
-    title: '6 · Ergebnis der Prüfung',
-    items: [
-      { type: 'radio', name: 'pruefergebnis', label: 'Ergebnis', vertical: true, options: [
-        ['keine', 'Keine Mängel festgestellt'],
-        ['gering', 'Geringfügige Mängel festgestellt'],
-        ['erheblich', 'Erhebliche Mängel festgestellt'],
-        ['sicherheit', 'Sicherheitsrelevanter Mangel festgestellt'],
-        ['weiter', 'Weitergehende fachkundige Prüfung erforderlich'],
-      ] },
-      { type: 'textarea', name: 'ergebnis_bemerkung', label: 'Zusatzbewertung / Begründung' },
-    ],
-  },
-  {
-    title: '7–8 · Bemerkungen und Maßnahmen',
-    items: [
-      { type: 'textarea', name: 'bemerkungen', label: '7. Bemerkungen', rows: 5 },
-      { type: 'textarea', name: 'empfehlungen', label: '8. Empfehlungen / weitere Maßnahmen', rows: 5 },
-      { type: 'radio', name: 'nachpruefung', label: 'Erforderliche Nachprüfung',
-        options: [['nein', 'nein'], ['ja', 'ja']] },
-      { type: 'date', name: 'nachpruefung_datum', label: 'Nachprüfung am' },
-    ],
-  },
-  {
-    title: '9 · Abschluss',
-    items: [
-      { type: 'group', label: 'Prüfer', items: [
-        { type: 'text', name: 'abschluss_name_0', label: 'Name' },
-        { type: 'signature', slot: 'signature_0', label: 'Unterschrift' },
-        { type: 'date', name: 'abschluss_datum_0', label: 'Datum' },
-      ] },
-      { type: 'group', label: 'Verantwortlicher Betreiber', items: [
-        { type: 'text', name: 'abschluss_name_1', label: 'Name' },
-        { type: 'signature', slot: 'signature_1', label: 'Unterschrift' },
-        { type: 'date', name: 'abschluss_datum_1', label: 'Datum' },
-      ] },
-      { type: 'date', name: 'naechster_prueftermin', label: 'Nächster Prüftermin' },
-    ],
-  },
+// [Wert, Kurztitel, Erläuterung im PDF]
+export const ERGEBNIS = [
+  ['keine', 'Keine Mängel festgestellt',
+    'Die geprüfte Treppe weist im Rahmen der durchgeführten Sicht- und Funktionsprüfung keine erkennbaren Mängel auf.'],
+  ['gering', 'Geringfügige Mängel festgestellt',
+    'Die Nutzung ist nach fachlicher Bewertung weiterhin möglich. Eine zeitnahe Mängelbeseitigung ist erforderlich.'],
+  ['erheblich', 'Erhebliche Mängel festgestellt',
+    'Eine kurzfristige Mängelbeseitigung ist erforderlich. Die weitere Nutzung ist unter Berücksichtigung der konkreten Gefährdung zu bewerten.'],
+  ['sicherheit', 'Sicherheitsrelevanter Mangel festgestellt',
+    'Die Nutzung ist bis zur Beseitigung bzw. geeigneten Absicherung des Mangels einzuschränken oder die Treppe zu sperren.'],
+  ['weiter', 'Weitergehende fachkundige Prüfung erforderlich',
+    'Eine abschließende Beurteilung ist durch eine entsprechend qualifizierte Fachperson / einen Sachverständigen erforderlich.'],
 ];
 
-export const DATE_FIELDS = new Set();
-(function collect(items) {
-  for (const it of items) {
-    if (it.type === 'date') DATE_FIELDS.add(it.name);
-    if (it.items) collect(it.items);
+export const TEXTE = {
+  pruefhinweis: 'Die Prüfung ist objektbezogen durchzuführen. Anzuwendende Vorschriften, genehmigte Planunterlagen, Herstellerangaben und weitere technische Grundlagen sind vor Ort festzulegen und bei Bedarf zu dokumentieren.',
+  grundlagenHinweis: 'Die tatsächliche Auswahl und Rangfolge der Prüfgrundlagen ist objektspezifisch festzulegen. Die Checkfelder dienen der Dokumentation und ersetzen keine rechtliche oder fachkundige Prüfung.',
+  checklisteHinweis: 'Bei Mängeln bitte fortlaufend in Abschnitt 4 eintragen und ggf. Foto in Abschnitt 5 zuordnen.',
+  bewertungsHinweis: 'Die Priorität ist unter Berücksichtigung der konkreten Gefährdung, der Nutzung der Treppe und der betrieblichen Rahmenbedingungen festzulegen. Bei sicherheitsrelevanten Mängeln ist eine geeignete Absicherung bzw. Sperrung zu bewerten.',
+  dokuHinweis: 'Mit der Unterschrift wird die Durchführung und Dokumentation der Prüfung bestätigt. Technische oder rechtliche Schlussfolgerungen sind auf die im Prüfauftrag vorgesehenen Kompetenzen zu beschränken.',
+};
+
+export const MAX_PHOTOS = 12;
+
+// Prüfpunkt-Nummern (1-24), die als "Mangel" markiert sind.
+export const defectNumbers = (fields) =>
+  CHECKPOINTS.map((_, i) => i + 1).filter((n) => fields[`pruefstatus_${n}`] === 'mangel');
+
+export const answeredCount = (fields) =>
+  CHECKPOINTS.reduce((n, _, i) => n + (fields[`pruefstatus_${i + 1}`] ? 1 : 0), 0);
+
+// Fotos aus Version 1.0 (feste Plätze foto 1-6) in die neue Liste übernehmen.
+export function migrate(rec) {
+  if (rec.photos) return false;
+  rec.photos = [];
+  for (let n = 1; n <= 6; n++) {
+    if (!rec.fields[`_has_photo_${n}`]) continue;
+    const caption = [rec.fields[`foto_bereich_${n}`], rec.fields[`foto_bemerkung_${n}`]].filter(Boolean).join(' – ');
+    rec.photos.push({ slot: `photo_${n}`, caption });
   }
-})(SECTIONS);
+  rec.pos ??= { step: 0, q: 0 };
+  return true;
+}
