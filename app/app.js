@@ -5,7 +5,7 @@ import {
 import * as db from './db.js';
 import { buildPdf } from './export-pdf.js';
 
-const APP_VERSION = '3';
+const APP_VERSION = '6';
 const $app = document.getElementById('app');
 
 // ---------- Hilfsfunktionen ----------
@@ -36,6 +36,7 @@ const ICONS = {
   more: '<circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/><circle cx="5" cy="12" r="1.2"/>',
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
 function icon(name) {
@@ -150,8 +151,23 @@ async function renderList() {
         h('button', { class: 'card-more', 'aria-label': 'Mehr', onclick: () => cardMenu(r, records) }, icon('more'))))),
     h('footer', { class: 'foot' },
       h('p', {}, 'Alles wird automatisch auf diesem Gerät gespeichert. Die App funktioniert auch ohne Internet.'),
+      h('button', { class: 'link', onclick: templateMenu }, icon('download'), 'Leere Vorlage herunterladen'),
       location.search.includes('demo') && h('button', { class: 'link', onclick: createDemo }, 'Testdaten'),
       h('p', { class: 'tiny' }, `Version ${APP_VERSION}`)));
+}
+
+// Leeres Formular zum Ausdrucken oder Bearbeiten am Computer (Dateien liegen im Ordner vorlagen).
+async function templateMenu() {
+  const v = await ask('Leere Vorlage', 'PDF: ausfüllbar am Computer oder Tablet. Word: zum freien Bearbeiten in Microsoft Word.', [
+    { label: 'PDF (ausfüllbar)', value: 'Leeres_Pruefprotokoll.pdf', kind: 'primary' },
+    { label: 'Word (.docx)', value: 'Leeres_Pruefprotokoll.docx' },
+    { label: 'Abbrechen', value: null },
+  ]);
+  if (!v) return;
+  const a = h('a', { href: `vorlagen/${v}`, download: v });
+  document.body.append(a);
+  a.click();
+  a.remove();
 }
 
 async function cardMenu(r, records) {
