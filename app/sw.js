@@ -1,5 +1,5 @@
 // VERSION bei jeder Änderung an den Dateien erhöhen, damit installierte Apps sich aktualisieren.
-const VERSION = 'v2.1.3';
+const VERSION = 'v2.1.4';
 const CACHE = `protokoll-${VERSION}`;
 const ASSETS = [
   './', 'sw.js', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js', 'export-docx.js', 'layout.js',
