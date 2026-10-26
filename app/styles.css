@@ -159,6 +159,9 @@ canvas.sig { display: block; width: 100%; touch-action: none; }
 .summary li i { flex: none; width: 1.7rem; height: 1.7rem; border-radius: 50%; display: grid; place-items: center; color: #fff; font-style: normal; font-weight: 800; }
 .summary li.ok i { background: var(--ok); } .summary li.warn { border-color: #e2b25b; background: #fff8ea; } .summary li.warn i { background: var(--warn); }
 .summary li span { flex: 1; }
+.btn.wide { width: 100%; }
+.summary + .btn.wide { margin-top: .2rem; }
+.muted.hint { margin: .5rem .2rem 0; }
 
 /* Dialoge */
 .overlay { position: fixed; inset: 0; z-index: 40; display: flex; align-items: flex-end; justify-content: center; background: rgba(15,23,42,.55); }

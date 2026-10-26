@@ -9,6 +9,7 @@ Vorlage (`../DHRW_Pruefprotokoll_Tablet 01.pdf`).
 - `index.html`, `styles.css`, `app.js` – Oberfläche (Startseite mit allen Prüfungen, geführte Schritte)
 - `fields.js` – Prüfpunkte, Auswahllisten und Texte des Protokolls
 - `export-pdf.js` – zeichnet das PDF komplett selbst (Zeilen wachsen mit dem Text, lange Texte laufen auf die nächste Seite, Fotos groß)
+- `export-docx.js` – baut dieselben Inhalte als Word-Datei (.docx) zum Nachbearbeiten am PC; ohne Bibliothek, funktioniert offline (Knopf „Word-Datei erstellen“ im Schritt Abschluss)
 - `db.js` – Speicherung auf dem Gerät (IndexedDB); Fotos werden auf ca. 1800 px verkleinert
 - `sw.js`, `manifest.webmanifest`, `icon-*.png` – Offline-Cache und Installation
 - `pdf-lib.min.js` – PDF-Bibliothek (lokal eingebunden, damit sie offline verfügbar ist)

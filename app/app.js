@@ -4,6 +4,7 @@ import {
 } from './fields.js';
 import * as db from './db.js';
 import { buildPdf } from './export-pdf.js';
+import { buildDocx } from './export-docx.js';
 
 const $app = document.getElementById('app');
 
@@ -35,6 +36,7 @@ const ICONS = {
   more: '<circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/><circle cx="5" cy="12" r="1.2"/>',
   trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
   file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  edit: '<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>',
   download: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>',
   alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
 };
@@ -283,7 +285,7 @@ function render(keepScroll) {
     h('nav', { class: `nav${prev ? '' : ' single'}` },
       prev && h('button', { class: 'btn ghost', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
       next && h('button', { class: 'btn primary', onclick: () => go(...next) }, 'Weiter', icon('chevronRight')),
-      !next && h('button', { class: 'btn primary', onclick: (e) => exportPdf(e.currentTarget) }, icon('file'), 'PDF erstellen')));
+      !next && h('button', { class: 'btn primary', onclick: (e) => exportFile(e.currentTarget, 'pdf') }, icon('file'), 'PDF erstellen')));
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
@@ -690,14 +692,25 @@ function screenFertig() {
     h('ul', { class: 'summary' }, rows.map((r) => h('li', { class: r.ok ? 'ok' : 'warn' },
       h('i', {}, icon(r.ok ? 'check' : 'alert')), h('span', {}, r.text),
       !r.ok && r.fix && h('button', { class: 'btn small ghost', onclick: r.fix }, 'Ändern')))),
+    h('button', { class: 'btn ghost wide', onclick: (e) => exportFile(e.currentTarget, 'docx') }, icon('edit'), 'Word-Datei erstellen'),
+    h('p', { class: 'muted hint' }, 'Zum Nachbearbeiten am PC in Microsoft Word: Texte ergänzen oder ändern, Fotos verschieben.'),
     current.exportedAt && h('p', { class: 'lead done' }, '✓ Das PDF wurde erstellt. Sie können es jederzeit erneut erstellen.'));
 }
 
-async function exportPdf(btn) {
+const EXPORTS = {
+  pdf: { ext: 'pdf', type: 'application/pdf', busy: 'PDF wird erstellt …', saved: 'PDF wurde gespeichert.', failed: 'Das PDF konnte nicht erstellt werden.' },
+  docx: {
+    ext: 'docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    busy: 'Word-Datei wird erstellt …', saved: 'Word-Datei wurde gespeichert.', failed: 'Die Word-Datei konnte nicht erstellt werden.',
+  },
+};
+
+async function exportFile(btn, kind) {
+  const x = EXPORTS[kind];
   await flush();
   btn.disabled = true;
   const label = btn.innerHTML;
-  btn.textContent = 'PDF wird erstellt …';
+  btn.textContent = x.busy;
   try {
     const fields = {};
     for (const [k, v] of Object.entries(current.fields)) if (!k.startsWith('_')) fields[k] = v;
@@ -706,13 +719,16 @@ async function exportPdf(btn) {
       const b = await db.getBlob(current.id, slot);
       if (b) blobs[slot] = new Uint8Array(await b.arrayBuffer());
     }
-    const bytes = await buildPdf({ fields, photos: current.photos }, blobs);
+    const data = { fields, photos: current.photos };
+    const bytes = kind === 'docx' ? buildDocx(data, blobs) : await buildPdf(data, blobs);
     const base = [fields.objekt, fields.standort, fields.treppen_nr, fields.pruefdatum].filter(Boolean).join('_')
       .replace(/[^\wäöüÄÖÜß-]+/g, '_').replace(/^_+|_+$/g, '');
-    const name = `Pruefprotokoll_${base || 'neu'}.pdf`;
-    const file = new File([bytes], name, { type: 'application/pdf' });
-    current.exportedAt = Date.now();
-    await db.putRecord(current);
+    const name = `Pruefprotokoll_${base || 'neu'}.${x.ext}`;
+    const file = new File([bytes], name, { type: x.type });
+    if (kind === 'pdf') {
+      current.exportedAt = Date.now();
+      await db.putRecord(current);
+    }
     if (navigator.canShare?.({ files: [file] })) {
       try { await navigator.share({ files: [file], title: name }); render(true); return; }
       catch (e) { if (e.name === 'AbortError') { render(true); return; } }
@@ -723,13 +739,13 @@ async function exportPdf(btn) {
     link.click();
     link.remove();
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    toast('PDF wurde gespeichert.');
+    toast(x.saved);
     render(true);
   } catch (err) {
     console.error(err);
     btn.disabled = false;
     btn.innerHTML = label;
-    toast('Das PDF konnte nicht erstellt werden.');
+    toast(x.failed);
   }
 }
 

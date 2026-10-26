@@ -2,7 +2,7 @@
 const VERSION = 'v9';
 const CACHE = `protokoll-${VERSION}`;
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js',
+  './', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js', 'export-docx.js',
   'pdf-lib.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
   'vorlagen/Leeres_Pruefprotokoll.pdf', 'vorlagen/Leeres_Pruefprotokoll.docx',
 ];
