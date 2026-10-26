@@ -6,7 +6,7 @@
 }
 html { font-size: 20px; -webkit-text-size-adjust: 100%; }
 * { box-sizing: border-box; }
-html, body { max-width: 100%; overflow-x: hidden; }
+html, body { max-width: 100%; overflow-x: clip; }
 body { margin: 0; background: var(--bg); line-height: 1.4; -webkit-tap-highlight-color: transparent; }
 #app { min-height: 100dvh; display: flex; flex-direction: column; }
 button, input, textarea { font: inherit; color: inherit; }
@@ -198,3 +198,9 @@ canvas.sig { display: block; width: 100%; touch-action: none; }
 .summary li { min-width: 0; overflow-wrap: break-word; }
 .choice.check { margin-bottom: .9rem; }
 .choice.check:last-of-type { margin-bottom: 1.5rem; }
+
+/* Offene Dialoge: Seite dahinter bleibt stehen und scrollt nicht mit */
+html:has(.overlay, .lb) { overflow: hidden; overscroll-behavior: none; }
+.overlay, .sheet, .lb { overscroll-behavior: contain; }
+.overlay { touch-action: none; }
+.sheet { touch-action: pan-y; }

@@ -494,9 +494,9 @@ async function addFiles(files, ref) {
 function photoButtons(ref) {
   const pick = (e) => { const files = e.target.files; addFiles(files, ref).then(() => { e.target.value = ''; }); };
   return h('div', { class: 'row2' },
-    h('label', { class: 'btn primary' }, icon('camera'), 'Foto aufnehmen',
+    h('label', { class: 'btn primary' }, icon('camera'), 'Foto',
       h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true, onchange: pick })),
-    h('label', { class: 'btn ghost' }, icon('image'), 'Aus Galerie',
+    h('label', { class: 'btn ghost' }, icon('image'), 'Galerie',
       h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true, onchange: pick })));
 }
 
