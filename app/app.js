@@ -5,7 +5,7 @@ import {
 import * as db from './db.js';
 import { buildPdf } from './export-pdf.js';
 
-const APP_VERSION = '2';
+const APP_VERSION = '3';
 const $app = document.getElementById('app');
 
 // ---------- Hilfsfunktionen ----------
@@ -20,6 +20,38 @@ const h = (tag, attrs = {}, ...children) => {
   el.append(...children.flat().filter((c) => c != null && c !== false));
   return el;
 };
+
+// Symbole im Stil von Feather Icons (MIT), direkt eingebettet, damit sie offline funktionieren.
+const ICONS = {
+  home: '<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/>',
+  camera: '<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  chevronLeft: '<polyline points="15 18 9 12 15 6"/>',
+  chevronRight: '<polyline points="9 18 15 12 9 6"/>',
+  chevronDown: '<polyline points="6 9 12 15 18 9"/>',
+  check: '<polyline points="20 6 9 17 4 12"/>',
+  x: '<line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>',
+  minus: '<line x1="5" y1="12" x2="19" y2="12"/>',
+  plus: '<line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>',
+  more: '<circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/><circle cx="5" cy="12" r="1.2"/>',
+  trash: '<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>',
+  file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>',
+  alert: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+};
+function icon(name) {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+  svg.setAttribute('viewBox', '0 0 24 24');
+  svg.setAttribute('fill', 'none');
+  svg.setAttribute('stroke', 'currentColor');
+  svg.setAttribute('stroke-width', '2');
+  svg.setAttribute('stroke-linecap', 'round');
+  svg.setAttribute('stroke-linejoin', 'round');
+  svg.setAttribute('aria-hidden', 'true');
+  svg.setAttribute('class', 'ic');
+  svg.innerHTML = ICONS[name];
+  return svg;
+}
+const markEl = (kind = 'check') => h('i', { class: 'mark' }, icon(kind));
 
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}${Math.random().toString(16).slice(2)}`);
 const today = () => new Date().toISOString().slice(0, 10);
@@ -68,6 +100,7 @@ const STEP_PUNKTE = STEPS.findIndex((s) => s.id === 'punkte');
 const NQ = CHECKPOINTS.length;
 
 let current = null;
+let lastStep = -1;
 let urls = [];
 let saveTimer = null;
 
@@ -104,17 +137,17 @@ async function renderList() {
   $app.replaceChildren(
     h('header', { class: 'top' }, h('span', { class: 'top-title' }, 'Prüfprotokolle')),
     h('main', { class: 'screen' },
-      h('button', { class: 'btn primary huge', onclick: () => createRecord(null, records[0]) }, '＋ Neue Prüfung'),
+      h('button', { class: 'btn primary huge', onclick: () => createRecord(null, records[0]) }, icon('plus'), 'Neue Prüfung'),
       records.length
         ? h('h2', { class: 'list-title' }, 'Meine Prüfungen')
         : h('p', { class: 'lead' }, 'Hier erscheinen Ihre Prüfungen. Tippen Sie auf „Neue Prüfung“, um zu beginnen.'),
       records.map((r) => h('div', { class: 'card' },
         h('button', { class: 'card-main', onclick: () => { location.hash = `#/r/${r.id}`; } },
           h('strong', {}, recordTitle(r)),
-          h('span', { class: 'muted' },
-            [fmtDate(r.fields.pruefdatum), r.exportedAt ? '✓ PDF erstellt' : `In Arbeit · ${STEPS[r.pos?.step ?? 0].name}`]
-              .filter(Boolean).join(' · '))),
-        h('button', { class: 'card-more', 'aria-label': 'Mehr', onclick: () => cardMenu(r, records) }, '⋯')))),
+          h('span', { class: 'muted status' },
+            fmtDate(r.fields.pruefdatum),
+            r.exportedAt ? h('b', { class: 'okt' }, icon('check'), 'PDF erstellt') : `In Arbeit · ${STEPS[r.pos?.step ?? 0].name}`)),
+        h('button', { class: 'card-more', 'aria-label': 'Mehr', onclick: () => cardMenu(r, records) }, icon('more'))))),
     h('footer', { class: 'foot' },
       h('p', {}, 'Alles wird automatisch auf diesem Gerät gespeichert. Die App funktioniert auch ohne Internet.'),
       location.search.includes('demo') && h('button', { class: 'link', onclick: createDemo }, 'Testdaten'),
@@ -175,6 +208,7 @@ async function openRecord(id) {
   if (migrate(rec)) await db.putRecord(rec);
   rec.pos ??= { step: 0, q: 0 };
   current = rec;
+  lastStep = -1;
   render();
 }
 
@@ -207,19 +241,26 @@ function render(keepScroll) {
     ort: screenOrt, treppe: screenTreppe, grundlagen: screenGrundlagen, punkte: screenPunkte, fotos: screenFotos,
     ergebnis: screenErgebnis, anmerkungen: screenAnmerkungen, unterschrift: screenUnterschrift, fertig: screenFertig,
   };
-  const label = s.id === 'punkte' ? `Frage ${q + 1} von ${NQ}` : `Schritt ${step + 1} von ${STEPS.length}`;
-  const progress = ((step + (s.id === 'punkte' ? (q + 1) / NQ : 1)) / STEPS.length) * 100;
   const prev = prevPos(), next = nextPos();
+  const changed = lastStep !== step;
+  lastStep = step;
   $app.replaceChildren(
     h('header', { class: 'top' },
-      h('button', { class: 'top-back', onclick: backToList }, '‹ Liste'),
-      h('button', { class: 'top-steps', onclick: stepsMenu }, `${label} ▾`)),
-    h('div', { class: 'progress', 'aria-hidden': 'true' }, h('div', { style: `width:${progress}%` })),
+      h('div', { class: 'top-row' },
+        h('button', { class: 'home', 'aria-label': 'Zur Startseite', onclick: backToList }, icon('home')),
+        h('button', { class: 'stepper', 'aria-label': 'Zu einem anderen Schritt springen', onclick: stepsMenu },
+          h('span', { class: `num${changed ? ' pop' : ''}` }, step + 1),
+          h('span', { class: 'txt' },
+            h('span', { class: 'kicker' }, `Schritt ${step + 1} von ${STEPS.length}`),
+            h('span', { class: 'name' }, s.name)),
+          icon('chevronDown'))),
+      h('div', { class: 'segs', 'aria-hidden': 'true' },
+        STEPS.map((_, i) => h('i', { class: i < step ? 'done' : i === step ? 'cur' : '' })))),
     h('main', { class: 'screen' }, screens[s.id]()),
     h('nav', { class: `nav${prev ? '' : ' single'}` },
-      prev && h('button', { class: 'btn ghost', onclick: () => go(...prev) }, '‹ Zurück'),
-      next && h('button', { class: 'btn primary', onclick: () => go(...next) }, 'Weiter ›'),
-      !next && h('button', { class: 'btn primary', onclick: (e) => exportPdf(e.currentTarget) }, 'PDF erstellen')));
+      prev && h('button', { class: 'btn ghost', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
+      next && h('button', { class: 'btn primary', onclick: () => go(...next) }, 'Weiter', icon('chevronRight')),
+      !next && h('button', { class: 'btn primary', onclick: (e) => exportPdf(e.currentTarget) }, icon('file'), 'PDF erstellen')));
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
@@ -237,12 +278,23 @@ function stepDone(id) {
   }[id];
 }
 
-async function stepsMenu() {
-  const v = await ask('Springen zu …', '', [
-    ...STEPS.map((s, i) => ({ label: `${stepDone(s.id) ? '✓' : '○'}  ${s.name}`, value: i, kind: i === current.pos.step ? 'primary' : 'ghost' })),
-    { label: 'Schließen', value: null },
-  ]);
-  if (v != null) go(v, v === STEP_PUNKTE ? Math.max(0, firstUnanswered()) : 0);
+function stepsMenu() {
+  const close = (to) => {
+    overlay.remove();
+    if (to != null) go(to, to === STEP_PUNKTE ? firstUnanswered() : 0);
+  };
+  const overlay = h('div', { class: 'overlay', onclick: (e) => e.target === overlay && close(null) },
+    h('div', { class: 'sheet', role: 'dialog', 'aria-modal': 'true' },
+      h('h2', {}, 'Schritt auswählen'),
+      h('div', { class: 'steplist' }, STEPS.map((st, i) => {
+        const done = stepDone(st.id);
+        return h('button', { class: `step-row${i === current.pos.step ? ' current' : ''}`, 'aria-current': i === current.pos.step ? 'step' : null, onclick: () => close(i) },
+          h('span', { class: `num${done ? ' done' : ''}` }, i + 1),
+          h('span', { class: 'nm' }, st.name),
+          h('span', { class: 'st' }, done && icon('check')));
+      })),
+      h('button', { class: 'btn ghost', onclick: () => close(null) }, icon('x'), 'Schließen')));
+  document.body.append(overlay);
 }
 const firstUnanswered = () => {
   const i = CHECKPOINTS.findIndex((_, k) => !current.fields[`pruefstatus_${k + 1}`]);
@@ -269,7 +321,7 @@ function choiceGroup(name, list, { cols = 1, onChange } = {}) {
       setField(name, val);
       paint();
       onChange?.(val);
-    } }, h('i', { class: 'mark' }), label)));
+    } }, markEl(), label)));
   paint();
   return wrap;
 }
@@ -278,7 +330,7 @@ function checkRow(name, label) {
   const b = h('button', { type: 'button', class: 'choice check', role: 'checkbox', onclick: () => {
     setField(name, current.fields[name] === 'Yes' ? '' : 'Yes');
     b.setAttribute('aria-pressed', String(current.fields[name] === 'Yes'));
-  } }, h('i', { class: 'mark' }), label);
+  } }, markEl(), label);
   b.setAttribute('aria-pressed', String(current.fields[name] === 'Yes'));
   return b;
 }
@@ -341,9 +393,9 @@ function screenPunkte() {
       advanceTimer = setTimeout(() => {
         if (nx && current && `${current.pos.step}:${current.pos.q}` === at) go(...nx);
       }, 350);
-    } }, h('i', { class: 'mark' }), label)));
+    } }, markEl({ io: 'check', mangel: 'x', na: 'minus' }[val]), label)));
   return h('div', {},
-    h('p', { class: 'qno' }, `Prüfpunkt ${n}`),
+    h('p', { class: 'qno' }, `Prüfpunkt ${n} von ${NQ}`),
     h('h2', { class: 'question' }, CHECKPOINTS[q]),
     buttons,
     status === 'mangel' && defectPanel(n));
@@ -403,9 +455,9 @@ async function addFiles(files, ref) {
 function photoButtons(ref) {
   const pick = (e) => { const files = e.target.files; addFiles(files, ref).then(() => { e.target.value = ''; }); };
   return h('div', { class: 'row2' },
-    h('label', { class: 'btn primary' }, '📷 Foto aufnehmen',
+    h('label', { class: 'btn primary' }, icon('camera'), 'Foto aufnehmen',
       h('input', { type: 'file', accept: 'image/*', capture: 'environment', hidden: true, onchange: pick })),
-    h('label', { class: 'btn ghost' }, '🖼 Aus Galerie',
+    h('label', { class: 'btn ghost' }, icon('image'), 'Aus Galerie',
       h('input', { type: 'file', accept: 'image/*', multiple: true, hidden: true, onchange: pick })));
 }
 
@@ -439,8 +491,8 @@ function openLightbox(start) {
   const title = h('span', { class: 'lb-title' });
   const cap = h('input', { type: 'text', maxlength: 140, placeholder: 'Beschriftung (freiwillig)', autocomplete: 'off' });
   cap.addEventListener('input', () => { current.photos[i].caption = cap.value; scheduleSave(); });
-  const prev = h('button', { class: 'btn ghost', onclick: () => show(i - 1) }, '‹');
-  const next = h('button', { class: 'btn ghost', onclick: () => show(i + 1) }, '›');
+  const prev = h('button', { class: 'btn ghost', 'aria-label': 'Voriges Foto', onclick: () => show(i - 1) }, icon('chevronLeft'));
+  const next = h('button', { class: 'btn ghost', 'aria-label': 'Nächstes Foto', onclick: () => show(i + 1) }, icon('chevronRight'));
   const del = h('button', { class: 'btn danger', onclick: async () => {
     const sure = await ask('Foto löschen?', '', [
       { label: 'Ja, löschen', value: true, kind: 'danger' }, { label: 'Nein', value: false, kind: 'primary' }]);
@@ -449,10 +501,10 @@ function openLightbox(start) {
     await db.deleteBlob(current.id, p.slot);
     scheduleSave();
     if (!current.photos.length) close(); else show(Math.min(i, current.photos.length - 1));
-  } }, 'Foto löschen');
+  } }, icon('trash'), 'Foto löschen');
   const close = () => { if (url) URL.revokeObjectURL(url); overlay.remove(); render(true); };
   const overlay = h('div', { class: 'lb' },
-    h('div', { class: 'lb-top' }, title, h('button', { class: 'btn ghost', onclick: close }, '✕ Schließen')),
+    h('div', { class: 'lb-top' }, title, h('button', { class: 'btn ghost', onclick: close }, icon('x'), 'Schließen')),
     scroller, hint,
     h('div', { class: 'lb-bottom' }, cap, h('div', { class: 'row3' }, prev, del, next)));
   async function show(k) {
@@ -569,11 +621,18 @@ function signaturePad(slot) {
   return h('div', { class: 'sigwrap' },
     h('div', { class: 'sigbox' }, canvas, hint),
     h('button', { class: 'btn ghost', onclick: async () => {
+      if (current.fields[`_has_${slot}`]) {
+        const sure = await ask('Unterschrift löschen?', 'Die Unterschrift wird entfernt.', [
+          { label: 'Ja, löschen', value: true, kind: 'danger' },
+          { label: 'Nein, behalten', value: false, kind: 'primary' },
+        ]);
+        if (!sure) return;
+      }
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       hint.hidden = false;
       await db.deleteBlob(id, slot);
       setField(`_has_${slot}`, '');
-    } }, 'Neu schreiben'));
+    } }, icon('trash'), 'Unterschrift löschen'));
 }
 
 function screenUnterschrift() {
@@ -606,7 +665,7 @@ function screenFertig() {
   return h('div', {},
     h('h2', {}, 'Fast geschafft'),
     h('ul', { class: 'summary' }, rows.map((r) => h('li', { class: r.ok ? 'ok' : 'warn' },
-      h('i', {}, r.ok ? '✓' : '!'), h('span', {}, r.text),
+      h('i', {}, icon(r.ok ? 'check' : 'alert')), h('span', {}, r.text),
       !r.ok && r.fix && h('button', { class: 'btn small ghost', onclick: r.fix }, 'Ändern')))),
     current.exportedAt && h('p', { class: 'lead done' }, '✓ Das PDF wurde erstellt. Sie können es jederzeit erneut erstellen.'));
 }
@@ -614,7 +673,7 @@ function screenFertig() {
 async function exportPdf(btn) {
   await flush();
   btn.disabled = true;
-  const label = btn.textContent;
+  const label = btn.innerHTML;
   btn.textContent = 'PDF wird erstellt …';
   try {
     const fields = {};
@@ -646,7 +705,7 @@ async function exportPdf(btn) {
   } catch (err) {
     console.error(err);
     btn.disabled = false;
-    btn.textContent = label;
+    btn.innerHTML = label;
     toast('Das PDF konnte nicht erstellt werden.');
   }
 }

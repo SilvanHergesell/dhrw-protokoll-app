@@ -13,6 +13,8 @@ Vorlage (`../DHRW_Pruefprotokoll_Tablet 01.pdf`).
 - `sw.js`, `manifest.webmanifest`, `icon-*.png` – Offline-Cache und Installation
 - `pdf-lib.min.js` – PDF-Bibliothek (lokal eingebunden, damit sie offline verfügbar ist)
 - `template.pdf` – wird seit Version 2 nicht mehr benötigt
+- `vorlagen/` – leere Vorlagen zum Herunterladen (Startseite, unten „Leere Vorlage herunterladen“): `Leeres_Pruefprotokoll.pdf` (ausfüllbar) und `Leeres_Pruefprotokoll.docx` (für Word)
+- `../tools/` – erzeugt die Vorlagen neu, falls sich das Protokoll ändert: `node tools/make-blank-pdf.mjs` und `python3 tools/make_docx.py app/vorlagen/Leeres_Pruefprotokoll.docx` (braucht `python-docx`)
 
 ## Änderungen veröffentlichen
 

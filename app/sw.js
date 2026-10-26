@@ -1,9 +1,10 @@
 // VERSION bei jeder Änderung an den Dateien erhöhen, damit installierte Apps sich aktualisieren.
-const VERSION = 'v2';
+const VERSION = 'v4';
 const CACHE = `protokoll-${VERSION}`;
 const ASSETS = [
   './', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js',
   'pdf-lib.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
+  'vorlagen/Leeres_Pruefprotokoll.pdf', 'vorlagen/Leeres_Pruefprotokoll.docx',
 ];
 
 self.addEventListener('install', (e) => {

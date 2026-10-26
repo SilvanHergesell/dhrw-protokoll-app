@@ -52,9 +52,33 @@ function wrap(font, size, text, maxW) {
 }
 
 class Writer {
-  constructor(doc, font, bold) {
-    this.doc = doc; this.font = font; this.bold = bold;
-    this.pages = []; this.page = null; this.y = 0; this.cont = null;
+  constructor(doc, font, bold, blank = false) {
+    this.doc = doc; this.font = font; this.bold = bold; this.blank = blank;
+    this.pages = []; this.page = null; this.y = 0; this.cont = null; this.defs = [];
+  }
+
+  // Formularfeld für die leere Vorlage merken (nur im blank-Modus)
+  reg(def) { if (this.blank) this.defs.push({ page: this.page, ...def }); }
+  regRadio(name, option, cx, cy, r = 6.5) { this.reg({ kind: 'radio', name, option, x: cx - r, y: cy - r, w: 2 * r, h: 2 * r }); }
+
+  buildForm() {
+    const form = this.doc.getForm();
+    const radios = new Map();
+    for (const d of this.defs) {
+      if (d.kind === 'radio') { if (!radios.has(d.name)) radios.set(d.name, []); radios.get(d.name).push(d); continue; }
+      const o = { x: d.x, y: d.y, width: d.w, height: d.h, borderWidth: 0, textColor: d.kind === 'text' ? col.ink : col.blue };
+      if (d.kind === 'check') { form.createCheckBox(d.name).addToPage(d.page, o); continue; }
+      const tf = form.createTextField(d.name);
+      if (d.multiline) tf.enableMultiline();
+      tf.addToPage(d.page, o);
+      tf.setFontSize(d.size || 9.5);
+    }
+    for (const [name, opts] of radios) {
+      const rg = form.createRadioGroup(name);
+      opts.forEach((d) => rg.addOptionToPage(d.option, d.page, {
+        x: d.x, y: d.y, width: d.w, height: d.h, borderWidth: 0, textColor: col.blue,
+      }));
+    }
   }
 
   // ---- Seiten ----
@@ -157,12 +181,13 @@ class Writer {
     prep.forEach((c) => {
       this.rect(c.x, this.y, c.w, boxH, { fill: col.white, stroke: col.line });
       this.lines(c.lines, c.x + pad, this.y - (boxH - c.lines.length * lh) / 2, { size, lh });
+      if (c.name) this.reg({ kind: 'text', name: c.name, x: c.x + 1, y: this.y - boxH + 1, w: c.w - 2, h: boxH - 2 });
     });
     this.gap(boxH + 14);
   }
 
   // Textfeld, das bei Bedarf über mehrere Seiten läuft.
-  flowBox(label, value, { minH = 60, labelStyle } = {}) {
+  flowBox(label, value, { minH = 60, labelStyle, name } = {}) {
     const pad = 6, size = 9.5, lh = 12.2;
     const lines = wrap(this.font, size, value, CW - 2 * pad);
     let i = 0, first = true;
@@ -177,6 +202,7 @@ class Writer {
       this.rect(M, this.y, CW, h, { fill: col.white, stroke: col.line });
       const chunk = lines.slice(i, i + fit);
       this.lines(chunk, M + pad, this.y - pad + 1, { size, lh });
+      if (name && i === 0) this.reg({ kind: 'text', name, multiline: true, x: M + 1, y: this.y - h + 1, w: CW - 2, h: h - 2 });
       i += chunk.length;
       this.gap(h);
       if (i >= lines.length) break;
@@ -216,32 +242,40 @@ function sectionGeneral(w, f) {
   w.section('1 · ALLGEMEINE ANGABEN', 'Objekt- und Prüfungsdaten');
   const x4 = [M, 282, 429, 629.5], w4 = [238, 130, 184, W - M - 629.5];
   w.fieldRow([
-    { x: x4[0], w: w4[0], label: 'Dokument-Nr.', value: f.dokument_nr },
-    { x: x4[1], w: w4[1], label: 'Revision', value: f.revision },
-    { x: x4[2], w: w4[2], label: 'Prüfdatum', value: fmtDate(f.pruefdatum) },
-    { x: x4[3], w: w4[3], label: 'Prüfer', value: f.pruefer },
+    { x: x4[0], w: w4[0], label: 'Dokument-Nr.', value: f.dokument_nr, name: 'dokument_nr' },
+    { x: x4[1], w: w4[1], label: 'Revision', value: f.revision, name: 'revision' },
+    { x: x4[2], w: w4[2], label: 'Prüfdatum', value: fmtDate(f.pruefdatum), name: 'pruefdatum' },
+    { x: x4[3], w: w4[3], label: 'Prüfer', value: f.pruefer, name: 'pruefer' },
   ]);
   const half = (CW - 16) / 2, x2 = M + half + 16;
   w.fieldRow([
-    { x: M, w: half, label: 'Objekt', value: f.objekt },
-    { x: x2, w: half, label: 'Gebäude / Bereich', value: f.gebaeude_bereich },
+    { x: M, w: half, label: 'Objekt', value: f.objekt, name: 'objekt' },
+    { x: x2, w: half, label: 'Gebäude / Bereich', value: f.gebaeude_bereich, name: 'gebaeude_bereich' },
   ]);
   w.fieldRow([
-    { x: M, w: half, label: 'Standort', value: f.standort },
-    { x: x2, w: half, label: 'Treppen-Nr.', value: f.treppen_nr },
+    { x: M, w: half, label: 'Standort', value: f.standort, name: 'standort' },
+    { x: x2, w: half, label: 'Treppen-Nr.', value: f.treppen_nr, name: 'treppen_nr' },
   ]);
 
   // Treppentyp / Bauart als Auswahlreihen
-  const opts = (label, list, value, x, width, extra) => {
+  const opts = (name, label, list, value, x, width, extra) => {
     w.rrect(x, w.y, 130, 20, 5, { fill: col.soft });
     w.text(label, x + 9, w.y - 13.2, { size: 8, font: w.bold, color: col.navy });
     const top = w.y - 28;
     const cw = width / list.length;
     let maxLines = 1;
-    list.forEach(([key, name], i) => {
+    list.forEach(([key, optName], i) => {
       const cx = x + i * cw;
       w.radio(cx + 9, top - 8, value === key);
-      let t = name;
+      w.regRadio(name, key, cx + 9, top - 8);
+      if (key === 'sonstige' && w.blank) {
+        w.lines(['Sonstige:'], cx + 22, top - 1, { size: 9, lh: 11.5 });
+        const bx = cx + 22 + 46, bw = cw - 22 - 46 - 6;
+        w.rect(bx, top + 3, bw, 17, { fill: col.white, stroke: col.line });
+        w.reg({ kind: 'text', name: 'bauart_sonstige', x: bx + 1, y: top + 3 - 17 + 1, w: bw - 2, h: 15 });
+        return;
+      }
+      let t = optName;
       if (key === 'sonstige' && value === 'sonstige' && extra) t = `Sonstige: ${extra}`;
       const lines = wrap(w.font, 9, t, cw - 28);
       maxLines = Math.max(maxLines, lines.length);
@@ -250,11 +284,11 @@ function sectionGeneral(w, f) {
     return 28 + Math.max(18, maxLines * 11.5);
   };
   w.ensure(70);
-  const h1 = opts('Treppentyp', TREPPENTYP, f.treppentyp, M, half);
-  const h2 = opts('Bauart', BAUART, f.bauart, x2, half, S(f.bauart_sonstige));
+  const h1 = opts('treppentyp', 'Treppentyp', TREPPENTYP, f.treppentyp, M, half);
+  const h2 = opts('bauart', 'Bauart', BAUART, f.bauart, x2, half, S(f.bauart_sonstige));
   w.gap(Math.max(h1, h2) + 12);
 
-  w.flowBox('Anwesende Personen', f.anwesende_personen, { minH: 27 });
+  w.flowBox('Anwesende Personen', f.anwesende_personen, { minH: 27, name: 'anwesende_personen' });
   w.note('Prüfhinweis', TEXTE.pruefhinweis);
 }
 
@@ -265,11 +299,12 @@ function sectionGrundlagen(w, f) {
     const on = f[`grundlage_${i + 1}`] === 'Yes';
     w.rect(M, w.y, CW, 28, { fill: on ? col.blueSoft : col.white, stroke: col.line, lw: 0.5 });
     w.checkbox(M + 16, w.y - 14, on);
+    w.reg({ kind: 'check', name: `grundlage_${i + 1}`, x: M + 16 - 6.5, y: w.y - 14 - 6.5, w: 13, h: 13 });
     w.text(name, M + 34, w.y - 17.5, { size: 9.5, font: on ? w.bold : w.font });
     w.gap(28);
   });
   w.gap(14);
-  w.flowBox('Weitere Grundlagen / objektspezifische Festlegungen', f.grundlagen_frei, { minH: 56 });
+  w.flowBox('Weitere Grundlagen / objektspezifische Festlegungen', f.grundlagen_frei, { minH: 56, name: 'grundlagen_frei' });
   w.note('Hinweis', TEXTE.grundlagenHinweis);
 }
 
@@ -294,11 +329,34 @@ function sectionChecklist(w, f) {
     w.text(String(n), CK.nr[0] + CK.nr[1] / 2 - w.bold.widthOfTextAtSize(String(n), 8.5) / 2, w.y - h / 2 - 3, { size: 8.5, font: w.bold, color: col.navy });
     w.lines(tl, CK.text[0] + 8, w.y - (h - tl.length * 11) / 2, { size: 8.6, lh: 11 });
     w.lines(nl, CK.note[0] + 6, w.y - (h - nl.length * 11) / 2, { size: 8.2, lh: 11 });
-    ['io', 'mangel', 'na'].forEach((k) => w.statusMark(CK[k][0] + CK[k][1] / 2, w.y - h / 2, k, status === k));
+    ['io', 'mangel', 'na'].forEach((k) => {
+      w.statusMark(CK[k][0] + CK[k][1] / 2, w.y - h / 2, k, status === k);
+      w.regRadio(`pruefstatus_${n}`, k, CK[k][0] + CK[k][1] / 2, w.y - h / 2, 8);
+    });
+    w.reg({ kind: 'text', name: `bemerkung_${n}`, multiline: true, size: 8, x: CK.note[0] + 2, y: w.y - h + 2, w: CK.note[1] - 4, h: h - 4 });
     w.gap(h);
   });
   w.gap(12);
   w.note('Dokumentation', TEXTE.checklisteHinweis);
+}
+
+function blankDefects(w, c, head) {
+  for (let k = 1; k <= 5; k++) {
+    const h = 62;
+    if (w.ensure(h)) head();
+    w.rect(M, w.y, CW, h, { stroke: col.line, lw: 0.5 });
+    [c.text[0], c.prio[0], c.mass[0], c.wer[0], c.term[0]].forEach((x) => w.vline(x, w.y, w.y - h));
+    w.text(String(k), c.nr[0] + c.nr[1] / 2 - w.bold.widthOfTextAtSize(String(k), 8.5) / 2, w.y - h / 2 - 3, { size: 8.5, font: w.bold, color: col.navy });
+    ['hoch', 'mittel', 'niedrig'].forEach((key, i) => {
+      const cy = w.y - 13 - i * 18;
+      w.radio(c.prio[0] + 13, cy, false);
+      w.regRadio(`prioritaet_${k}`, key, c.prio[0] + 13, cy);
+      w.text(key, c.prio[0] + 24, cy - 3, { size: 8.2 });
+    });
+    [['mangel', c.text], ['massnahme', c.mass], ['verantwortlich', c.wer], ['termin', c.term]].forEach(([nm, [x, wd]]) =>
+      w.reg({ kind: 'text', name: `${nm}_${k}`, multiline: true, size: 8.6, x: x + 2, y: w.y - h + 2, w: wd - 4, h: h - 4 }));
+    w.gap(h);
+  }
 }
 
 function sectionDefects(w, f) {
@@ -310,8 +368,9 @@ function sectionDefects(w, f) {
     { t: 'Verantwortlich', x: c.wer[0], w: c.wer[1] }, { t: 'Termin', x: c.term[0], w: c.term[1] },
   ]);
   head();
-  const nums = defectNumbers(f);
-  if (!nums.length) {
+  const nums = w.blank ? [] : defectNumbers(f);
+  if (w.blank) blankDefects(w, c, head);
+  else if (!nums.length) {
     w.rect(M, w.y, CW, 30, { stroke: col.line, lw: 0.5 });
     w.text('Es wurden keine Mängel festgestellt.', c.text[0] + 8, w.y - 18.5, { size: 9, color: col.ink });
     w.gap(30);
@@ -347,6 +406,7 @@ function sectionDefects(w, f) {
 
 async function sectionPhotos(w, f, photos, blobs) {
   w.section('5 · FOTODOKUMENTATION', 'Fotodokumentation und Anlagen');
+  if (w.blank) photos = Array.from({ length: 6 }, (_, i) => ({ slot: `leer${i}`, caption: '' }));
   if (!photos.length) {
     w.rrect(M, w.y, CW, 60, 6, { fill: col.soft, stroke: col.softLine });
     w.text('Es wurden keine Fotos dokumentiert.', M + 16, w.y - 35, { size: 10, color: col.ink });
@@ -386,7 +446,7 @@ function photoCard(w, { n, p, img }, x, top, cw, ch) {
   const capLines = [];
   if (p.ref) capLines.push(...wrap(w.font, 7.8, `Prüfpunkt ${p.ref}: ${CHECKPOINTS[p.ref - 1]}`, cw - 2 * pad).slice(0, 1).map((t) => ({ t, grey: true })));
   wrap(w.font, 8.8, p.caption, cw - 2 * pad).slice(0, 3).forEach((t) => capLines.push({ t }));
-  const capH = Math.max(14, capLines.length * 11 + 6);
+  const capH = w.blank ? 28 : Math.max(14, capLines.length * 11 + 6);
   const imgTop = top - pad - 18;
   const imgH = ch - pad - 18 - capH - pad;
   const imgW = cw - 2 * pad;
@@ -395,8 +455,16 @@ function photoCard(w, { n, p, img }, x, top, cw, ch) {
     const s = Math.min((imgW - 4) / img.width, (imgH - 4) / img.height);
     const dw = img.width * s, dh = img.height * s;
     w.page.drawImage(img, { x: x + pad + (imgW - dw) / 2, y: imgTop - imgH + (imgH - dh) / 2, width: dw, height: dh });
+  } else if (w.blank) {
+    w.page.drawRectangle({ x: x + pad, y: imgTop - imgH, width: imgW, height: imgH, color: col.soft, borderColor: col.blue, borderWidth: 0.8, borderDashArray: [3, 3] });
+    const t = 'Foto hier einfügen';
+    w.text(t, x + pad + (imgW - w.bold.widthOfTextAtSize(t, 9)) / 2, imgTop - imgH / 2 - 3, { size: 9, font: w.bold, color: col.grey });
   } else {
     w.text('Foto nicht verfügbar', x + pad + 10, imgTop - imgH / 2, { size: 9, color: col.grey });
+  }
+  if (w.blank) {
+    w.rect(x + pad, imgTop - imgH - 3, imgW, capH - 3, { fill: col.white, stroke: col.line });
+    w.reg({ kind: 'text', name: `foto_bemerkung_${n}`, x: x + pad + 1, y: imgTop - imgH - capH + 1, w: imgW - 2, h: capH - 5, size: 8.8 });
   }
   capLines.forEach((l, i) => {
     w.text(l.t, x + pad, imgTop - imgH - 12 - i * 11 + 0, { size: l.grey ? 7.8 : 8.8, color: l.grey ? col.grey : col.ink });
@@ -414,27 +482,35 @@ function sectionResult(w, f) {
     w.rrect(M, w.y, CW, h, 6, { fill: on ? col.blueSoft : col.white, stroke: on ? col.blue : col.line, lw: on ? 1.4 : 0.8 });
     w.rect(M + 10, w.y - 12, 4, h - 24, { fill: accents[i] });
     w.radio(M + 34, w.y - 22, on);
+    w.regRadio('pruefergebnis', key, M + 34, w.y - 22);
     w.text(title, M + 52, w.y - 25, { size: 10, font: w.bold, color: col.navy });
     w.lines(dl, M + 52, w.y - 31, { size: 8.6, lh: 11 });
     w.gap(h + 8);
   });
   w.gap(6);
-  w.flowBox('Zusatzbewertung / Begründung', f.ergebnis_bemerkung, { minH: 50 });
+  w.flowBox('Zusatzbewertung / Begründung', f.ergebnis_bemerkung, { minH: 50, name: 'ergebnis_bemerkung' });
 }
 
 function sectionRemarks(w, f) {
   w.section('7-8 · BEMERKUNGEN UND MASSNAHMEN', 'Bemerkungen, Empfehlungen und Nachprüfung');
   const ls = { size: 10, font: w.bold, color: col.navy };
-  w.flowBox('7. Bemerkungen', f.bemerkungen, { minH: 90, labelStyle: ls });
-  w.flowBox('8. Empfehlungen / weitere Maßnahmen', f.empfehlungen, { minH: 90, labelStyle: ls });
+  w.flowBox('7. Bemerkungen', f.bemerkungen, { minH: 90, labelStyle: ls, name: 'bemerkungen' });
+  w.flowBox('8. Empfehlungen / weitere Maßnahmen', f.empfehlungen, { minH: 90, labelStyle: ls, name: 'empfehlungen' });
   w.ensure(70);
   w.text('Erforderliche Nachprüfung', M, w.y - 9, ls);
   w.gap(24);
   w.radio(M + 9, w.y - 8, f.nachpruefung === 'nein'); w.text('nein', M + 24, w.y - 11.5, { size: 9.5 });
+  w.regRadio('nachpruefung', 'nein', M + 9, w.y - 8);
   w.radio(M + 110, w.y - 8, f.nachpruefung === 'ja'); w.text('ja', M + 125, w.y - 11.5, { size: 9.5 });
-  if (f.nachpruefung === 'ja') {
+  w.regRadio('nachpruefung', 'ja', M + 110, w.y - 8);
+  if (w.blank || f.nachpruefung === 'ja') {
     w.text('Termin:', M + 170, w.y - 11.5, { size: 9.5, font: w.bold, color: col.grey });
-    w.text(fmtDate(f.nachpruefung_datum) || '-', M + 214, w.y - 11.5, { size: 9.5 });
+    if (w.blank) {
+      w.rect(M + 214, w.y + 1, 130, 20, { fill: col.white, stroke: col.line });
+      w.reg({ kind: 'text', name: 'nachpruefung_datum', x: M + 215, y: w.y - 18, w: 128, h: 18 });
+    } else {
+      w.text(fmtDate(f.nachpruefung_datum) || '-', M + 214, w.y - 11.5, { size: 9.5 });
+    }
   }
   w.gap(24);
 }
@@ -458,19 +534,20 @@ async function sectionClosing(w, f, blobs, doc) {
     const name = f[`abschluss_name_${n}`] || (n === 0 ? f.pruefer : '');
     const date = f[`abschluss_datum_${n}`] || (sigs[n] || name ? f.pruefdatum : '');
     const fw = cw - 2 * pad;
-    const field = (label, y, h, fn) => {
+    const field = (label, y, h, fn, key) => {
       w.text(label, x + pad, y - 8, { size: 8.3, font: w.bold, color: col.grey });
       w.rect(x + pad, y - 13, fw, h, { fill: col.white, stroke: col.line });
       fn(y - 13);
+      if (key) w.reg({ kind: 'text', name: key, x: x + pad + 1, y: y - 13 - h + 1, w: fw - 2, h: h - 2 });
     };
-    field('Name', top - 38, 26, (y) => w.lines(wrap(w.font, 9.5, name, fw - 12).slice(0, 1), x + pad + 6, y - 6.5, { size: 9.5 }));
+    field('Name', top - 38, 26, (y) => w.lines(wrap(w.font, 9.5, name, fw - 12).slice(0, 1), x + pad + 6, y - 6.5, { size: 9.5 }), `abschluss_name_${n}`);
     field('Unterschrift', top - 84, 66, (y) => {
       const img = sigs[n];
       if (!img) return;
       const s = Math.min((fw - 12) / img.width, 54 / img.height);
       w.page.drawImage(img, { x: x + pad + (fw - img.width * s) / 2, y: y - 66 + (66 - img.height * s) / 2, width: img.width * s, height: img.height * s });
     });
-    field('Datum', top - 168, 26, (y) => w.lines([fmtDate(date)], x + pad + 6, y - 6.5, { size: 9.5 }));
+    field('Datum', top - 168, 26, (y) => w.lines([fmtDate(date)], x + pad + 6, y - 6.5, { size: 9.5 }), `abschluss_datum_${n}`);
   });
   w.gap(ch + 14);
 
@@ -480,20 +557,21 @@ async function sectionClosing(w, f, blobs, doc) {
   w.text('Nächster Prüftermin', M + 14, w.y - 24, { size: 11, font: w.bold, color: col.navy });
   w.rect(M + 14, w.y - 38, 220, 26, { fill: col.white, stroke: col.line });
   w.lines([fmtDate(f.naechster_prueftermin)], M + 20, w.y - 44.5, { size: 10 });
+  w.reg({ kind: 'text', name: 'naechster_prueftermin', size: 10, x: M + 15, y: w.y - 38 - 24, w: 218, h: 24 });
   w.text('Dokumentationshinweis:', M + 270, w.y - 24, { size: 8.3, font: w.bold, color: col.grey });
   w.lines(wrap(w.font, 8.3, TEXTE.dokuHinweis, CW - 270 - 14 - 10), M + 270, w.y - 31, { size: 8.3, lh: 11 });
 }
 
 // fields: Eingaben, photos: [{slot, caption, ref}], blobs: {slot: Uint8Array}
-export async function buildPdf({ fields, photos = [] }, blobs = {}) {
+export async function buildPdf({ fields = {}, photos = [] } = {}, blobs = {}, { blank = false } = {}) {
   const f = fields;
   const doc = await PDFDocument.create();
-  doc.setTitle(S(`Prüfprotokoll ${f.objekt || ''} ${f.standort || ''}`).trim());
+  doc.setTitle(blank ? 'Prüfprotokoll (leere Vorlage)' : S(`Prüfprotokoll ${f.objekt || ''} ${f.standort || ''}`).trim());
   doc.setAuthor(S(f.pruefer) || 'DHRW Engineering GmbH');
   doc.setCreator('DHRW Prüfprotokoll');
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
-  const w = new Writer(doc, font, bold);
+  const w = new Writer(doc, font, bold, blank);
 
   sectionGeneral(w, f);
   sectionGrundlagen(w, f);
@@ -504,6 +582,9 @@ export async function buildPdf({ fields, photos = [] }, blobs = {}) {
   sectionRemarks(w, f);
   await sectionClosing(w, f, blobs, doc);
 
+  if (blank) w.buildForm();
   w.finish('DHRW Engineering GmbH · Edisonallee 39 · 89231 Neu-Ulm · Tel. 0731 14113924 · info@dhrw.group');
   return doc.save();
 }
+
+export const buildBlankPdf = () => buildPdf({}, {}, { blank: true });
