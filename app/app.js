@@ -133,21 +133,29 @@ function blobUrl(blob) {
 
 // ---------- Startseite ----------
 
-// Die Version steht nur in sw.js (VERSION) und wird hier aus dem Namen des Caches gelesen.
+// Die Version steht nur in sw.js (VERSION). Sie wird direkt aus dieser Datei gelesen, also auch beim
+// ersten Start; ohne Netz kommt sie aus dem Cache-Namen.
 async function appVersion() {
+  const clean = (v) => (v ? `v${String(v).replace(/^v/i, '')}` : '');
+  try {
+    const m = (await (await fetch('sw.js')).text()).match(/const VERSION = '([^']+)'/);
+    if (m) return clean(m[1]);
+  } catch { /* offline ohne Cache */ }
   try {
     const names = await caches.keys();
-    return names.map((n) => n.match(/^protokoll-v(.+)$/)?.[1]).filter(Boolean).sort().pop();
+    return clean(names.map((n) => n.match(/^protokoll-(.+)$/)?.[1]).filter(Boolean).sort().pop());
   } catch { return ''; }
 }
 
 async function renderList() {
   const versionEl = h('p', { class: 'tiny' });
-  appVersion().then((v) => { if (v) versionEl.textContent = `Version ${v}`; });
+  appVersion().then((v) => { if (v) versionEl.textContent = v; });
   const records = await db.listRecords();
   records.forEach((r) => migrate(r));
   $app.replaceChildren(
-    h('header', { class: 'top' }, h('span', { class: 'top-title' }, 'Prüfprotokolle')),
+    h('header', { class: 'top' }, h('div', { class: 'top-row brand' },
+      h('img', { class: 'logo', src: 'logo.png', alt: 'DHRW Engineering' }),
+      h('span', { class: 'top-title' }, 'Prüfprotokolle'))),
     h('main', { class: 'screen' },
       h('button', { class: 'btn primary huge', onclick: () => createRecord() }, icon('plus'), 'Neue Prüfung'),
       records.length
@@ -282,10 +290,15 @@ function render(keepScroll) {
       h('div', { class: 'segs', 'aria-hidden': 'true' },
         STEPS.map((_, i) => h('i', { class: i < step ? 'done' : i === step ? 'cur' : '' })))),
     h('main', { class: 'screen' }, screens[s.id]()),
-    h('nav', { class: `nav${prev ? '' : ' single'}` },
-      prev && h('button', { class: 'btn ghost', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
-      next && h('button', { class: 'btn primary', onclick: () => go(...next) }, 'Weiter', icon('chevronRight')),
-      !next && h('button', { class: 'btn primary', onclick: (e) => exportFile(e.currentTarget, 'pdf') }, icon('file'), 'PDF erstellen')));
+    next
+      ? h('nav', { class: `nav${prev ? '' : ' single'}` },
+        prev && h('button', { class: 'btn ghost', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
+        h('button', { class: 'btn primary', onclick: () => go(...next) }, 'Weiter', icon('chevronRight')))
+      // Letzter Schritt: PDF und Word gleichrangig nebeneinander, „Zurück“ klein darüber
+      : h('nav', { class: 'nav final' },
+        h('button', { class: 'link back', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
+        h('button', { class: 'btn primary', onclick: (e) => exportFile(e.currentTarget, 'pdf') }, icon('file'), 'PDF erstellen'),
+        h('button', { class: 'btn ghost', onclick: (e) => exportFile(e.currentTarget, 'docx') }, icon('edit'), 'Word erstellen')));
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
@@ -692,8 +705,6 @@ function screenFertig() {
     h('ul', { class: 'summary' }, rows.map((r) => h('li', { class: r.ok ? 'ok' : 'warn' },
       h('i', {}, icon(r.ok ? 'check' : 'alert')), h('span', {}, r.text),
       !r.ok && r.fix && h('button', { class: 'btn small ghost', onclick: r.fix }, 'Ändern')))),
-    h('button', { class: 'btn ghost wide', onclick: (e) => exportFile(e.currentTarget, 'docx') }, icon('edit'), 'Word-Datei erstellen'),
-    h('p', { class: 'muted hint' }, 'Zum Nachbearbeiten am PC in Microsoft Word: Texte ergänzen oder ändern, Fotos verschieben.'),
     current.exportedAt && h('p', { class: 'lead done' }, '✓ Das PDF wurde erstellt. Sie können es jederzeit erneut erstellen.'));
 }
 

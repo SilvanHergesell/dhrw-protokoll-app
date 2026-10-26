@@ -6,13 +6,16 @@
 import {
   CHECKPOINTS, GRUNDLAGEN, TREPPENTYP, BAUART, PRIO, ERGEBNIS, TEXTE, defectNumbers,
 } from './fields.js';
+import {
+  COLORS, COMPANY, DOC_TITLE, FOOTER, SECTIONS, CONTINUED, LEGEND, CHECK_COLS, DEFECT_COLS, NO_DEFECTS, NO_PHOTOS,
+  PHOTOS_PER_PAGE, SIGNERS, STATUS_COLORS, PRIO_COLORS, RESULT_ACCENTS,
+} from './layout.js';
 
-const NAVY = '173660', BLUE = '2F75B5', GREY = '667085', INK = '1F2937';
-const LINE = 'B8C2CC', SOFT = 'F4F7FA', SOFTLINE = 'D9E2F3', BLUESOFT = 'E6EFFC', BADSOFT = 'FDF0EE';
-const OK = '2E7D32', WARN = 'C77700', BAD = 'B42318', NA = '737A8A';
+const {
+  navy: NAVY, blue: BLUE, grey: GREY, ink: INK, line: LINE, soft: SOFT, softLine: SOFTLINE, blueSoft: BLUESOFT, badSoft: BADSOFT,
+} = COLORS;
 const FONT = 'Arial';
 const CONTENT_W = 27.7; // cm
-const FOOTER = 'DHRW Engineering GmbH · Edisonallee 39 · 89231 Neu-Ulm · Tel. 0731 14113924 · info@dhrw.group';
 
 const cm = (v) => Math.round(v * 567); // Twips
 const emu = (v) => Math.round(v * 360000);
@@ -38,8 +41,9 @@ function run(text, o) {
 }
 
 // mark: Schrift für das Absatzende, damit in leeren Feldern getippter Text passend aussieht.
-function para(content = '', { align, before = 0, after = 0, keepNext, pageBreak, mark } = {}) {
+function para(content = '', { align, before = 0, after = 0, keepNext, pageBreak, mark, tabs } = {}) {
   return `<w:p><w:pPr>${keepNext ? '<w:keepNext/>' : ''}${pageBreak ? '<w:pageBreakBefore/>' : ''}`
+    + `${tabs ? `<w:tabs>${tabs.map((t) => `<w:tab w:val="left" w:pos="${cm(t)}"/>`).join('')}</w:tabs>` : ''}`
     + `<w:spacing w:before="${Math.round(before * 20)}" w:after="${Math.round(after * 20)}"/>`
     + `${align ? `<w:jc w:val="${align}"/>` : ''}${mark ? rPr(mark) : ''}</w:pPr>${content}</w:p>`;
 }
@@ -83,19 +87,25 @@ function table(widths, rows, { indent } = {}) {
 const spacer = (pt = 6) =>
   `<w:p><w:pPr><w:spacing w:before="0" w:after="0" w:line="${Math.round(pt * 20)}" w:lineRule="exact"/><w:rPr><w:sz w:val="4"/></w:rPr></w:pPr></w:p>`;
 
-// Anklickbares Kontrollkästchen (Word-Inhaltssteuerelement)
-function checkbox(on, { size = 11, color = BLUE } = {}) {
+// Anklickbares Kontrollkästchen (Word-Inhaltssteuerelement). Die Zeichen entsprechen den Symbolen im PDF:
+// box = Kästchen mit Haken, radio = Kreis mit Punkt, io/mangel/na = Haken, Kreuz, Strich für die Prüfpunkte.
+const GLYPHS = {
+  box: ['2610', '2611'], radio: ['25CB', '25C9'], io: ['25CB', '2714'], mangel: ['25CB', '2716'], na: ['25CB', '2296'],
+};
+const SYMBOL_FONT = 'Segoe UI Symbol';
+function checkbox(on, { kind = 'box', size = 11, color = BLUE } = {}) {
   const sz = Math.round(size * 2);
+  const [off, onGlyph] = GLYPHS[kind];
   return `<w:sdt><w:sdtPr><w14:checkbox><w14:checked w14:val="${on ? 1 : 0}"/>`
-    + '<w14:checkedState w14:val="2612" w14:font="MS Gothic"/><w14:uncheckedState w14:val="2610" w14:font="MS Gothic"/>'
+    + `<w14:checkedState w14:val="${onGlyph}" w14:font="${SYMBOL_FONT}"/><w14:uncheckedState w14:val="${off}" w14:font="${SYMBOL_FONT}"/>`
     + '</w14:checkbox></w:sdtPr><w:sdtContent><w:r><w:rPr>'
-    + '<w:rFonts w:ascii="MS Gothic" w:eastAsia="MS Gothic" w:hAnsi="MS Gothic" w:hint="eastAsia"/>'
+    + `<w:rFonts w:ascii="${SYMBOL_FONT}" w:eastAsia="${SYMBOL_FONT}" w:hAnsi="${SYMBOL_FONT}" w:cs="${SYMBOL_FONT}"/>`
     + `<w:color w:val="${color}"/><w:sz w:val="${sz}"/><w:szCs w:val="${sz}"/></w:rPr>`
-    + `<w:t>${on ? '☒' : '☐'}</w:t></w:r></w:sdtContent></w:sdt>`;
+    + `<w:t>${String.fromCodePoint(parseInt(on ? onGlyph : off, 16))}</w:t></w:r></w:sdtContent></w:sdt>`;
 }
 
-const option = (label, on, size = 9, gap = '') =>
-  checkbox(on, { color: on ? NAVY : BLUE }) + run(` ${label}${gap}`, { size, bold: on, color: INK });
+const option = (label, on, size = 9, gap = '', kind = 'radio') =>
+  checkbox(on, { kind, size: size + 2 }) + run(` ${label}${gap}`, { size, bold: on && kind === 'box', color: INK });
 
 // ---------- Bilder ----------
 
@@ -156,15 +166,17 @@ function heading(eyebrow, title, first = false) {
 }
 
 // Reihe beschrifteter Felder mit schmalen Lückenspalten
-function fieldRow(items, widths, minH = 1.15) {
-  const ws = [], cells = [];
+// Wie im PDF: Beschriftung über dem Kasten, darunter das umrandete Feld.
+function fieldRow(items, widths, minH = 0.95) {
+  const ws = [], labels = [], boxes = [];
   widths.forEach((w, i) => {
-    if (i) { ws.push(0.4); cells.push(cell('', { w: 0.4 })); }
+    if (i) { ws.push(0.4); labels.push(cell('', { w: 0.4 })); boxes.push(cell('', { w: 0.4 })); }
     ws.push(w);
     const [label, value] = items[i];
-    cells.push(cell(text(label, { size: 8, bold: true, color: GREY }) + textParas(value), { w, border: true, mar: [50, 50, 110, 110] }));
+    labels.push(cell(text(label, { size: 8.3, bold: true, color: GREY }), { w, mar: [0, 40, 0, 0] }));
+    boxes.push(cell(textParas(value, { size: 9.5 }), { w, border: true, v: 'center', mar: [60, 60, 110, 110] }));
   });
-  return table(ws, [row(cells, { h: minH })]) + spacer(6);
+  return table(ws, [row(labels), row(boxes, { h: minH })]) + spacer(8);
 }
 
 function textBox(label, value, minH, labelStyle = { size: 8.3, bold: true, color: GREY }) {
@@ -180,32 +192,33 @@ function noteBox(title, body) {
 }
 
 function sectionGeneral(f) {
-  let x = heading('1 · ALLGEMEINE ANGABEN', 'Objekt- und Prüfungsdaten', true);
+  let x = heading(...SECTIONS.general, true);
   x += fieldRow([['Dokument-Nr.', f.dokument_nr], ['Revision', f.revision], ['Prüfdatum', fmtDate(f.pruefdatum)], ['Prüfer', f.pruefer]], [8.0, 4.6, 6.3, 7.6]);
   x += fieldRow([['Objekt', f.objekt], ['Gebäude / Bereich', f.gebaeude_bereich]], [13.65, 13.65]);
   x += fieldRow([['Standort', f.standort], ['Treppen-Nr.', f.treppen_nr]], [13.65, 13.65]);
 
-  const opts = (list, value) => list.map(([k, label]) => option(label, value === k, 9, '   ')).join('');
+  // Optionen gleichmäßig verteilt wie im PDF (Tabstopps statt Leerzeichen)
+  const TAB = '<w:r><w:tab/></w:r>';
+  const opts = (list, value) => list.map(([k, label]) => option(label, value === k, 9)).join(TAB);
   const bauart = BAUART.map(([k, label]) => (k === 'sonstige'
-    ? option('Sonstige:', f.bauart === k, 9) + (f.bauart === k && f.bauart_sonstige
-      ? run(` ${f.bauart_sonstige}`, { size: 9 }) : run(' _______________', { size: 9, color: LINE }))
-    : option(label, f.bauart === k, 9, '   '))).join('');
-  const head = (s) => cell(text(s, { size: 8, bold: true, color: NAVY }), { w: 13.65, fill: SOFT, mar: [50, 50, 140, 140] });
-  const body = (c) => cell(para(c), { w: 13.65, mar: [90, 40, 140, 40] });
-  x += table([13.65, 0.4, 13.65], [
-    row([head('Treppentyp'), cell('', { w: 0.4 }), head('Bauart')]),
+    ? option(f.bauart === k && f.bauart_sonstige ? `Sonstige: ${f.bauart_sonstige}` : label, f.bauart === k, 9)
+    : option(label, f.bauart === k, 9))).join(TAB);
+  const head = (s) => cell(text(s, { size: 8, bold: true, color: NAVY }), { w: 4.6, fill: SOFT, mar: [60, 60, 160, 160] });
+  const body = (c) => cell(para(c, { tabs: [4.55, 9.1] }), { w: 13.65, span: 2, mar: [110, 40, 60, 40] });
+  x += table([4.6, 9.05, 0.4, 4.6, 9.05], [
+    row([head('Treppentyp'), cell('', { w: 9.05 }), cell('', { w: 0.4 }), head('Bauart'), cell('', { w: 9.05 })]),
     row([body(opts(TREPPENTYP, f.treppentyp)), cell('', { w: 0.4 }), body(bauart)]),
-  ]) + spacer(8);
+  ]) + spacer(10);
   x += textBox('Anwesende Personen', f.anwesende_personen, 1.3);
   x += noteBox('Prüfhinweis', TEXTE.pruefhinweis);
   return x;
 }
 
 function sectionGrundlagen(f) {
-  let x = heading('2 · PRÜFGRUNDLAGEN', 'Prüfgrundlagen und Anwendungsbereich');
+  let x = heading(...SECTIONS.grundlagen);
   x += table([CONTENT_W], GRUNDLAGEN.map((g, i) => {
     const on = f[`grundlage_${i + 1}`] === 'Yes';
-    return row([cell(para(option(g, on, 9.5)), { w: CONTENT_W, border: true, fill: on ? BLUESOFT : undefined, mar: [70, 70, 200, 100] })]);
+    return row([cell(para(option(g, on, 9.5, '', 'box')), { w: CONTENT_W, border: true, v: 'center', fill: on ? BLUESOFT : undefined, mar: [70, 70, 200, 100] })], { h: 0.99 });
   })) + spacer(10);
   x += textBox('Weitere Grundlagen / objektspezifische Festlegungen', f.grundlagen_frei, 2.0);
   x += noteBox('Hinweis', TEXTE.grundlagenHinweis);
@@ -213,22 +226,21 @@ function sectionGrundlagen(f) {
 }
 
 function sectionChecklist(f) {
-  let x = heading('3 · SICHT- UND FUNKTIONSPRÜFUNG', 'Prüfcheckliste');
-  x += text('i. O. = in Ordnung  ·  n. a. = nicht anwendbar', { size: 8.5, color: GREY }, { after: 5 });
+  let x = heading(...SECTIONS.checklist);
+  x += text(LEGEND, { size: 8.5, color: GREY }, { after: 5 });
   const widths = [1.3, 13.3, 2.0, 2.0, 2.0, 7.1];
-  const center = ['Nr.', 'i. O.', 'Mangel', 'n. a.'];
-  const rows = [row(['Nr.', 'Prüfpunkt', 'i. O.', 'Mangel', 'n. a.', 'Bemerkung'].map((t, i) => cell(
-    text(t, { size: 8, bold: true, color: GREY }, { align: center.includes(t) ? 'center' : undefined }),
+  const center = [0, 2, 3, 4];
+  const rows = [row(CHECK_COLS.map((t, i) => cell(
+    text(t, { size: 8, bold: true, color: GREY }, { align: center.includes(i) ? 'center' : undefined }),
     { w: widths[i], fill: SOFT, border: true, mar: [70, 70, 100, 100] })), { header: true })];
-  const markColor = { io: OK, mangel: BAD, na: NA };
-  CHECKPOINTS.forEach((name, i) => {
+    CHECKPOINTS.forEach((name, i) => {
     const n = i + 1, st = f[`pruefstatus_${n}`];
     const o = { border: true, v: 'center', mar: [40, 40, 100, 100], fill: st === 'mangel' ? BADSOFT : undefined };
     rows.push(row([
       cell(text(String(n), { size: 8.5, bold: true, color: NAVY }, { align: 'center' }), { w: widths[0], ...o }),
       cell(text(name, { size: 8.6 }), { w: widths[1], ...o }),
       ...['io', 'mangel', 'na'].map((k, j) => cell(
-        para(checkbox(st === k, { size: 12, color: st === k ? markColor[k] : BLUE }), { align: 'center' }), { w: widths[2 + j], ...o })),
+        para(checkbox(st === k, { kind: k, size: 13, color: st === k ? COLORS[STATUS_COLORS[k]] : LINE }), { align: 'center' }), { w: widths[2 + j], ...o })),
       cell(textParas(f[`bemerkung_${n}`], { size: 8.2 }), { w: widths[5], ...o }),
     ], { h: 0.9 }));
   });
@@ -238,22 +250,21 @@ function sectionChecklist(f) {
 }
 
 function sectionDefects(f) {
-  let x = heading('4 · FESTGESTELLTE MÄNGEL', 'Mängelerfassung');
+  let x = heading(...SECTIONS.defects);
   const widths = [1.2, 7.2, 2.6, 7.2, 5.4, 4.1];
-  const rows = [row(['Nr.', 'Feststellung / Mangel', 'Priorität', 'Erforderliche Maßnahme', 'Verantwortlich', 'Termin'].map((t, i) => cell(
+  const rows = [row(DEFECT_COLS.map((t, i) => cell(
     text(t, { size: 8, bold: true, color: GREY }, { align: i === 0 ? 'center' : undefined }),
     { w: widths[i], fill: SOFT, border: true, mar: [70, 70, 100, 100] })), { header: true })];
   const nums = defectNumbers(f);
   const o = { border: true, mar: [80, 60, 100, 100] };
   if (!nums.length) {
     rows.push(row([cell('', { w: widths[0], ...o }),
-      cell(text('Es wurden keine Mängel festgestellt.', { size: 9 }), { w: CONTENT_W - widths[0], span: 5, ...o })], { h: 0.9 }));
+      cell(text(NO_DEFECTS, { size: 9 }), { w: CONTENT_W - widths[0], span: 5, ...o })], { h: 0.9 }));
   }
   nums.forEach((n, idx) => {
-    const prioCol = { hoch: BAD, mittel: WARN, niedrig: OK };
     const prio = PRIO.map(([k, label]) => para(
-      checkbox(f[`prioritaet_${n}`] === k, { color: f[`prioritaet_${n}`] === k ? prioCol[k] : BLUE })
-      + run(` ${label.toLowerCase()}`, { size: 8.2, bold: f[`prioritaet_${n}`] === k, color: f[`prioritaet_${n}`] === k ? prioCol[k] : INK }),
+      checkbox(f[`prioritaet_${n}`] === k, { kind: 'radio', color: f[`prioritaet_${n}`] === k ? COLORS[PRIO_COLORS[k]] : LINE })
+      + run(` ${label.toLowerCase()}`, { size: 8.2, bold: f[`prioritaet_${n}`] === k, color: f[`prioritaet_${n}`] === k ? COLORS[PRIO_COLORS[k]] : INK }),
       { after: 1 })).join('');
     rows.push(row([
       cell(text(String(idx + 1), { size: 8.5, bold: true, color: NAVY }, { align: 'center' }), { w: widths[0], ...o, v: 'center' }),
@@ -272,9 +283,9 @@ function sectionDefects(f) {
 }
 
 function sectionPhotos(photos, blobs, media) {
-  let x = heading('5 · FOTODOKUMENTATION', 'Fotodokumentation und Anlagen');
+  let x = heading(...SECTIONS.photos);
   if (!photos.length) {
-    return x + table([CONTENT_W], [row([cell(text('Es wurden keine Fotos dokumentiert.', { size: 10 }),
+    return x + table([CONTENT_W], [row([cell(text(NO_PHOTOS, { size: 10 }),
       { w: CONTENT_W, fill: SOFT, border: { color: SOFTLINE }, mar: [300, 300, 300, 300] })])]) + spacer(6);
   }
   const photoCell = (p, n, w, maxH) => {
@@ -285,25 +296,27 @@ function sectionPhotos(photos, blobs, media) {
     return [
       cell(text(`Foto ${n}`, { size: 9, bold: true, color: NAVY }), { w, border: { sides: ['top', 'left', 'right'] }, mar: [80, 20, 140, 140] }),
       cell(pic ? para(pic, { align: 'center' }) : text('Foto nicht verfügbar', { size: 9, color: GREY }, { align: 'center' }),
-        { w, border: { sides: ['left', 'right'] }, v: 'center', mar: [40, 40, 140, 140] }),
+        { w, fill: SOFT, border: { color: SOFTLINE }, v: 'center', mar: [40, 40, 40, 40] }),
       cell(cap.join(''), { w, border: { sides: ['bottom', 'left', 'right'] }, mar: [60, 80, 140, 140] }),
     ];
   };
   // Wie im PDF: höchstens 4 Fotos pro Seite, ein einzelnes Foto bekommt die ganze Breite.
-  for (let i = 0; i < photos.length; i += 4) {
-    const chunk = photos.slice(i, i + 4);
-    if (i) x += heading('5 · FOTODOKUMENTATION', 'Fotodokumentation und Anlagen (Fortsetzung)');
+  for (let i = 0; i < photos.length; i += PHOTOS_PER_PAGE) {
+    const chunk = photos.slice(i, i + PHOTOS_PER_PAGE);
+    if (i) x += heading(SECTIONS.photos[0], SECTIONS.photos[1] + CONTINUED);
     if (chunk.length === 1) {
-      const c = photoCell(chunk[0], i + 1, CONTENT_W, 12.5);
-      x += table([CONTENT_W], [row([c[0]]), row([c[1]], { h: 12.7 }), row([c[2]])]) + spacer(10);
+      const c = photoCell(chunk[0], i + 1, CONTENT_W, 11.8);
+      x += table([CONTENT_W], [row([c[0]]), row([c[1]], { h: 12.0 }), row([c[2]])]) + spacer(10);
       continue;
     }
+    // Bei 2 Fotos eine Reihe über die ganze Seitenhöhe, bei 3-4 Fotos zwei Reihen
+    const imgH = chunk.length <= 2 ? 11.8 : 5.0;
     for (let k = 0; k < chunk.length; k += 2) {
-      const a = photoCell(chunk[k], i + k + 1, 13.65, 5.0);
-      const b = chunk[k + 1] ? photoCell(chunk[k + 1], i + k + 2, 13.65, 5.0) : [0, 1, 2].map(() => cell('', { w: 13.65 }));
+      const a = photoCell(chunk[k], i + k + 1, 13.65, imgH);
+      const b = chunk[k + 1] ? photoCell(chunk[k + 1], i + k + 2, 13.65, imgH) : [0, 1, 2].map(() => cell('', { w: 13.65 }));
       const gap = () => cell('', { w: 0.4 });
       x += table([13.65, 0.4, 13.65], [
-        row([a[0], gap(), b[0]]), row([a[1], gap(), b[1]], { h: 5.3 }), row([a[2], gap(), b[2]]),
+        row([a[0], gap(), b[0]]), row([a[1], gap(), b[1]], { h: imgH + 0.2 }), row([a[2], gap(), b[2]]),
       ]) + spacer(10);
     }
   }
@@ -311,60 +324,66 @@ function sectionPhotos(photos, blobs, media) {
 }
 
 function sectionResult(f) {
-  let x = heading('6 · ERGEBNIS DER PRÜFUNG', 'Ergebnis und fachliche Bewertung');
-  const accents = [OK, WARN, BAD, BAD, BLUE];
-  x += table([0.3, 1.2, 26.2], ERGEBNIS.map(([key, title, desc], i) => {
+  let x = heading(...SECTIONS.result);
+  // Wie im PDF: jede Option ein eigener Kasten mit farbigem Balken links
+  ERGEBNIS.forEach(([key, title, desc], i) => {
     const on = f.pruefergebnis === key;
     const fill = on ? BLUESOFT : undefined;
-    const bc = on ? BLUE : LINE;
-    return row([
-      cell('', { w: 0.3, fill: accents[i], border: { color: accents[i] } }),
-      cell(para(checkbox(on, { size: 14, color: on ? NAVY : BLUE }), { align: 'center' }),
-        { w: 1.2, fill, v: 'center', border: { sides: ['top', 'bottom'], color: bc }, mar: [80, 80, 120, 120] }),
+    const bc = on ? BLUE : LINE, bs = on ? 12 : 4;
+    x += table([0.35, 0.15, 1.1, 26.1], [row([
+      cell('', { w: 0.35, fill, border: { sides: ['top', 'bottom', 'left'], color: bc, sz: bs } }),
+      cell('', { w: 0.15, fill: COLORS[RESULT_ACCENTS[i]], border: { sides: ['top', 'bottom'], color: bc, sz: bs } }),
+      cell(para(checkbox(on, { kind: 'radio', size: 14 }), { align: 'center' }),
+        { w: 1.1, fill, v: 'center', border: { sides: ['top', 'bottom'], color: bc, sz: bs }, mar: [80, 80, 60, 60] }),
       cell(text(title, { size: 10, bold: true, color: NAVY }, { after: 1 }) + text(desc, { size: 8.6 }),
-        { w: 26.2, fill, v: 'center', border: { sides: ['top', 'bottom', 'right'], color: bc }, mar: [80, 80, 120, 120] }),
-    ], { h: 1.5 });
-  })) + spacer(10);
+        { w: 26.1, fill, v: 'center', border: { sides: ['top', 'bottom', 'right'], color: bc, sz: bs }, mar: [100, 100, 100, 120] }),
+    ], { h: 1.4 })]) + spacer(6);
+  });
+  x += spacer(4);
   x += textBox('Zusatzbewertung / Begründung', f.ergebnis_bemerkung, 2.2);
   return x;
 }
 
 function sectionRemarks(f) {
   const ls = { size: 10, bold: true, color: NAVY };
-  let x = heading('7-8 · BEMERKUNGEN UND MASSNAHMEN', 'Bemerkungen, Empfehlungen und Nachprüfung');
+  let x = heading(...SECTIONS.remarks);
   x += textBox('7. Bemerkungen', f.bemerkungen, 3.6, ls);
   x += textBox('8. Empfehlungen / weitere Maßnahmen', f.empfehlungen, 3.6, ls);
   x += text('Erforderliche Nachprüfung', ls, { after: 4 });
-  const termin = f.nachpruefung === 'ja' && f.nachpruefung_datum
-    ? run(fmtDate(f.nachpruefung_datum), { size: 9.5 }) : run('____________________', { size: 9.5, color: LINE });
-  x += para(option('nein', f.nachpruefung === 'nein', 9.5, '          ') + option('ja', f.nachpruefung === 'ja', 9.5, '          ')
-    + run('Termin: ', { size: 9.5, bold: true, color: GREY }) + termin);
+  // Termin erscheint wie im PDF nur bei „ja“
+  const termin = f.nachpruefung === 'ja'
+    ? '<w:r><w:tab/></w:r>' + run('Termin: ', { size: 9.5, bold: true, color: GREY }) + run(fmtDate(f.nachpruefung_datum) || '-', { size: 9.5 }) : '';
+  x += para(option('nein', f.nachpruefung === 'nein', 9.5) + '<w:r><w:tab/></w:r>' + option('ja', f.nachpruefung === 'ja', 9.5) + termin,
+    { tabs: [3.6, 5.3] });
   return x;
 }
 
 function sectionClosing(f, blobs, media) {
-  let x = heading('9 · ABSCHLUSS', 'Abschluss und nächste Prüfung');
+  let x = heading(...SECTIONS.closing);
   const cols = [0, 1].map((n) => {
     const name = f[`abschluss_name_${n}`] || (n === 0 ? f.pruefer : '');
-    const sig = blobs[`signature_${n}`] ? media.picture(blobs[`signature_${n}`], 12.4, 2.0, `Unterschrift ${n + 1}`) : '';
+    const sig = blobs[`signature_${n}`] ? media.picture(blobs[`signature_${n}`], 11.6, 2.0, `Unterschrift ${n + 1}`) : '';
     const date = f[`abschluss_datum_${n}`] || (sig || name ? f.pruefdatum : '');
-    return { title: n === 0 ? 'Prüfer' : 'Verantwortlicher Betreiber', name, sig, date: fmtDate(date) };
+    return { title: SIGNERS[n], name, sig, date: fmtDate(date) };
   });
-  const box = (content, h) => (c) => cell(content(c), { w: 13.65, border: true, mar: [60, 60, 110, 110], v: h > 1 ? 'center' : undefined });
-  const lbl = (s) => () => cell(text(s, { size: 8.3, bold: true, color: GREY }, { before: 4, after: 1 }), { w: 13.65 });
-  const plan = [
-    [(c) => cell(text(c.title, { size: 11, bold: true, color: NAVY }, { before: 4, after: 4 }), { w: 13.65 })],
-    [lbl('Name')], [box((c) => text(c.name, { size: 10 }), 0.9), 0.9],
-    [lbl('Unterschrift')], [box((c) => (c.sig ? para(c.sig, { align: 'center' }) : '<w:p/>'), 2.4), 2.4],
-    [lbl('Datum')], [box((c) => text(c.date, { size: 10 }), 0.9), 0.9],
-  ];
-  x += table([13.65, 0.4, 13.65], plan.map(([mk, h]) => row([mk(cols[0]), cell('', { w: 0.4 }), mk(cols[1])], { h }))) + spacer(12);
-  x += table([6.8, 0.6, 20.3], [
-    row([cell(text('Nächster Prüftermin', { size: 11, bold: true, color: NAVY }, { after: 4 }), { w: 6.8 }), cell('', { w: 0.6 }),
-      cell(text('Dokumentationshinweis:', { size: 8.3, bold: true, color: GREY }, { after: 3 }) + text(TEXTE.dokuHinweis, { size: 8.3 }), { w: 20.3 })]),
-    row([cell(text(fmtDate(f.naechster_prueftermin), { size: 10 }), { w: 6.8, border: true, mar: [60, 60, 110, 110] }),
-      cell('', { w: 0.6 }), cell('', { w: 20.3 })], { h: 0.9 }),
-  ]);
+  // Wie im PDF: je ein umrandeter Kasten pro Person, darin Name, Unterschrift und Datum als Felder
+  const IW = 12.65;
+  const box = (content, h) => table([IW], [row([cell(content, { w: IW, border: true, v: 'center', mar: [60, 60, 110, 110] })], { h })]);
+  const lbl = (s) => text(s, { size: 8.3, bold: true, color: GREY }, { before: 6, after: 2 });
+  const card = (c) => cell(
+    text(c.title, { size: 11, bold: true, color: NAVY }, { before: 2, after: 2 })
+    + lbl('Name') + box(text(c.name, { size: 9.5 }), 0.9)
+    + lbl('Unterschrift') + box(c.sig ? para(c.sig, { align: 'center' }) : '<w:p/>', 2.4)
+    + lbl('Datum') + box(text(c.date, { size: 9.5 }), 0.9) + spacer(6),
+    { w: 13.65, border: true, mar: [200, 100, 280, 280] });
+  x += table([13.65, 0.4, 13.65], [row([card(cols[0]), cell('', { w: 0.4 }), card(cols[1])])]) + spacer(12);
+  x += table([9.5, 18.2], [row([
+    cell(text('Nächster Prüftermin', { size: 11, bold: true, color: NAVY }, { after: 6 })
+      + table([7.8], [row([cell(text(fmtDate(f.naechster_prueftermin), { size: 10 }), { w: 7.8, border: true, v: 'center', mar: [60, 60, 110, 110] })], { h: 0.9 })])
+      + spacer(4), { w: 9.5, border: { sides: ['top', 'bottom', 'left'] }, mar: [200, 100, 280, 100] }),
+    cell(text('Dokumentationshinweis:', { size: 8.3, bold: true, color: GREY }, { after: 3 }) + text(TEXTE.dokuHinweis, { size: 8.3 }),
+      { w: 18.2, border: { sides: ['top', 'bottom', 'right'] }, mar: [220, 100, 100, 280] }),
+  ])]);
   return x;
 }
 
@@ -380,7 +399,7 @@ const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
 function headerXml() {
   const c = (s, align) => cell(text(s, { size: align ? 11 : 12, bold: true, color: 'FFFFFF' }, { align }),
     { w: 14.85, fill: NAVY, v: 'center', mar: [0, 0, 567, 567] });
-  return `${XML}<w:hdr ${NS}>${table([14.85, 14.85], [row([c('DHRW ENGINEERING GMBH'), c('PRÜFPROTOKOLL', 'right')], { h: 1.15, rule: 'exact' })], { indent: -1 })}<w:p/></w:hdr>`;
+  return `${XML}<w:hdr ${NS}>${table([14.85, 14.85], [row([c(COMPANY), c(DOC_TITLE, 'right')], { h: 1.48, rule: 'exact' })], { indent: -1 })}<w:p/></w:hdr>`;
 }
 
 function footerXml() {

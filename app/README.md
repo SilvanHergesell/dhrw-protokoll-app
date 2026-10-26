@@ -10,12 +10,18 @@ Vorlage (`../DHRW_Pruefprotokoll_Tablet 01.pdf`).
 - `fields.js` – Prüfpunkte, Auswahllisten und Texte des Protokolls
 - `export-pdf.js` – zeichnet das PDF komplett selbst (Zeilen wachsen mit dem Text, lange Texte laufen auf die nächste Seite, Fotos groß)
 - `export-docx.js` – baut dieselben Inhalte als Word-Datei (.docx) zum Nachbearbeiten am PC; ohne Bibliothek, funktioniert offline (Knopf „Word-Datei erstellen“ im Schritt Abschluss)
+- `layout.js` – gemeinsames Aussehen beider Exporte (Farben, Abschnittstitel, Spalten, Fußzeile). Änderungen hier wirken auf PDF und Word gleich
 - `db.js` – Speicherung auf dem Gerät (IndexedDB); Fotos werden auf ca. 1800 px verkleinert
 - `sw.js`, `manifest.webmanifest`, `icon-*.png` – Offline-Cache und Installation
 - `pdf-lib.min.js` – PDF-Bibliothek (lokal eingebunden, damit sie offline verfügbar ist)
 - `template.pdf` – wird seit Version 2 nicht mehr benötigt
 - `vorlagen/` – leere Vorlagen zum Herunterladen (Startseite, unten „Leere Vorlage herunterladen“): `Leeres_Pruefprotokoll.pdf` (ausfüllbar) und `Leeres_Pruefprotokoll.docx` (für Word)
 - `../tools/` – erzeugt die Vorlagen neu, falls sich das Protokoll ändert: `node tools/make-blank-pdf.mjs` und `python3 tools/make_docx.py app/vorlagen/Leeres_Pruefprotokoll.docx` (braucht `python-docx`)
+
+## PDF und Word vergleichen
+
+Nach Änderungen an einem Export: `node tools/compare-exports.mjs [foto.jpg …]` erzeugt beide Dateien aus
+Beispieldaten und legt sie in `vergleich/vergleich.html` Seite für Seite nebeneinander (braucht LibreOffice und pdftoppm).
 
 ## Änderungen veröffentlichen
 

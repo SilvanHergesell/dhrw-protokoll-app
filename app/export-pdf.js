@@ -5,19 +5,19 @@
 import {
   CHECKPOINTS, GRUNDLAGEN, TREPPENTYP, BAUART, ERGEBNIS, PRIO, TEXTE, defectNumbers,
 } from './fields.js';
+import {
+  COLORS, COMPANY, DOC_TITLE, FOOTER, SECTIONS, CONTINUED, LEGEND, CHECK_COLS, DEFECT_COLS, NO_DEFECTS, NO_PHOTOS,
+  PHOTOS_PER_PAGE, SIGNERS, STATUS_COLORS, PRIO_COLORS, RESULT_ACCENTS,
+} from './layout.js';
 
 const { PDFDocument, StandardFonts, rgb, LineCapStyle } = PDFLib;
 
 const W = 841.89, H = 595.28, M = 28, CW = W - 2 * M;
 const BOTTOM = 52;
 
-const col = {
-  navy: rgb(0.09, 0.212, 0.365), blue: rgb(0.184, 0.459, 0.71), grey: rgb(0.4, 0.439, 0.522),
-  ink: rgb(0.122, 0.161, 0.216), line: rgb(0.722, 0.761, 0.8), soft: rgb(0.957, 0.969, 0.98),
-  softLine: rgb(0.851, 0.886, 0.953), white: rgb(1, 1, 1),
-  ok: rgb(0.18, 0.49, 0.2), warn: rgb(0.78, 0.467, 0), bad: rgb(0.706, 0.137, 0.094), na: rgb(0.45, 0.48, 0.54),
-  badSoft: rgb(0.995, 0.94, 0.935), blueSoft: rgb(0.9, 0.94, 0.99),
-};
+// Farben kommen aus layout.js, damit PDF und Word gleich aussehen
+const hex = (h) => rgb(parseInt(h.slice(0, 2), 16) / 255, parseInt(h.slice(2, 4), 16) / 255, parseInt(h.slice(4, 6), 16) / 255);
+const col = Object.fromEntries(Object.entries(COLORS).map(([k, v]) => [k, hex(v)]));
 
 // Die Standardschrift kann nur Latin-1; alles andere (z. B. Emojis) wird entfernt.
 function S(v) {
@@ -86,8 +86,8 @@ class Writer {
     const p = this.doc.addPage([W, H]);
     this.page = p; this.pages.push(p);
     p.drawRectangle({ x: 0, y: H - 42, width: W, height: 42, color: col.navy });
-    p.drawText('DHRW ENGINEERING GMBH', { x: M, y: 567.7, size: 12, font: this.bold, color: col.white });
-    const t = 'PRÜFPROTOKOLL';
+    p.drawText(COMPANY, { x: M, y: 567.7, size: 12, font: this.bold, color: col.white });
+    const t = DOC_TITLE;
     p.drawText(t, { x: W - M - this.bold.widthOfTextAtSize(t, 11), y: 567.9, size: 11, font: this.bold, color: col.white });
     p.drawText(eyebrow, { x: M, y: 538.5, size: 8.2, font: this.bold, color: col.blue });
     p.drawText(title, { x: M, y: 515.7, size: 17, font: this.bold, color: col.navy });
@@ -95,7 +95,7 @@ class Writer {
     this.y = 496;
   }
   section(eyebrow, title) { this.newPage(eyebrow, title); }
-  continuePage() { this.newPage(this.cont.eyebrow, `${this.cont.base} (Fortsetzung)`, this.cont.base); }
+  continuePage() { this.newPage(this.cont.eyebrow, `${this.cont.base}${CONTINUED}`, this.cont.base); }
   ensure(h) { if (this.y - h < BOTTOM) { this.continuePage(); return true; } return false; }
   gap(n) { this.y -= n; }
 
@@ -158,7 +158,7 @@ class Writer {
   statusMark(cx, cy, kind, on) {
     const p = this.page;
     if (!on) { p.drawCircle({ x: cx, y: cy, size: 7.5, color: col.white, borderColor: col.line, borderWidth: 0.9 }); return; }
-    const c = { io: col.ok, mangel: col.bad, na: col.na }[kind];
+    const c = col[STATUS_COLORS[kind]];
     p.drawCircle({ x: cx, y: cy, size: 8.5, color: c });
     if (kind === 'io') this.tick(cx, cy, 5.2, col.white);
     else if (kind === 'mangel') this.cross(cx, cy, 5, col.white);
@@ -239,7 +239,7 @@ class Writer {
 const CK = { nr: [M, 38], text: [66, 400], io: [466, 58], mangel: [524, 58], na: [582, 58], note: [640, W - M - 640] };
 
 function sectionGeneral(w, f) {
-  w.section('1 · ALLGEMEINE ANGABEN', 'Objekt- und Prüfungsdaten');
+  w.section(...SECTIONS.general);
   const x4 = [M, 282, 429, 629.5], w4 = [238, 130, 184, W - M - 629.5];
   w.fieldRow([
     { x: x4[0], w: w4[0], label: 'Dokument-Nr.', value: f.dokument_nr, name: 'dokument_nr' },
@@ -293,7 +293,7 @@ function sectionGeneral(w, f) {
 }
 
 function sectionGrundlagen(w, f) {
-  w.section('2 · PRÜFGRUNDLAGEN', 'Prüfgrundlagen und Anwendungsbereich');
+  w.section(...SECTIONS.grundlagen);
   GRUNDLAGEN.forEach((name, i) => {
     w.ensure(30);
     const on = f[`grundlage_${i + 1}`] === 'Yes';
@@ -309,13 +309,13 @@ function sectionGrundlagen(w, f) {
 }
 
 function sectionChecklist(w, f) {
-  w.section('3 · SICHT- UND FUNKTIONSPRÜFUNG', 'Prüfcheckliste');
+  w.section(...SECTIONS.checklist);
   const head = () => w.tableHead([
-    { t: 'Nr.', x: CK.nr[0], w: CK.nr[1], center: true }, { t: 'Prüfpunkt', x: CK.text[0], w: CK.text[1] },
-    { t: 'i. O.', x: CK.io[0], w: CK.io[1], center: true }, { t: 'Mangel', x: CK.mangel[0], w: CK.mangel[1], center: true },
-    { t: 'n. a.', x: CK.na[0], w: CK.na[1], center: true }, { t: 'Bemerkung', x: CK.note[0], w: CK.note[1] },
+    { t: CHECK_COLS[0], x: CK.nr[0], w: CK.nr[1], center: true }, { t: CHECK_COLS[1], x: CK.text[0], w: CK.text[1] },
+    { t: CHECK_COLS[2], x: CK.io[0], w: CK.io[1], center: true }, { t: CHECK_COLS[3], x: CK.mangel[0], w: CK.mangel[1], center: true },
+    { t: CHECK_COLS[4], x: CK.na[0], w: CK.na[1], center: true }, { t: CHECK_COLS[5], x: CK.note[0], w: CK.note[1] },
   ]);
-  w.text('i. O. = in Ordnung  ·  n. a. = nicht anwendbar', M, w.y - 8, { size: 8.5, color: col.grey });
+  w.text(LEGEND, M, w.y - 8, { size: 8.5, color: col.grey });
   w.gap(16);
   head();
   CHECKPOINTS.forEach((name, i) => {
@@ -360,19 +360,19 @@ function blankDefects(w, c, head) {
 }
 
 function sectionDefects(w, f) {
-  w.section('4 · FESTGESTELLTE MÄNGEL', 'Mängelerfassung');
+  w.section(...SECTIONS.defects);
   const c = { nr: [M, 34], text: [62, 230], prio: [292, 78], mass: [370, 230], wer: [600, 112], term: [712, W - M - 712] };
   const head = () => w.tableHead([
-    { t: 'Nr.', x: c.nr[0], w: c.nr[1], center: true }, { t: 'Feststellung / Mangel', x: c.text[0], w: c.text[1] },
-    { t: 'Priorität', x: c.prio[0], w: c.prio[1] }, { t: 'Erforderliche Maßnahme', x: c.mass[0], w: c.mass[1] },
-    { t: 'Verantwortlich', x: c.wer[0], w: c.wer[1] }, { t: 'Termin', x: c.term[0], w: c.term[1] },
+    { t: DEFECT_COLS[0], x: c.nr[0], w: c.nr[1], center: true }, { t: DEFECT_COLS[1], x: c.text[0], w: c.text[1] },
+    { t: DEFECT_COLS[2], x: c.prio[0], w: c.prio[1] }, { t: DEFECT_COLS[3], x: c.mass[0], w: c.mass[1] },
+    { t: DEFECT_COLS[4], x: c.wer[0], w: c.wer[1] }, { t: DEFECT_COLS[5], x: c.term[0], w: c.term[1] },
   ]);
   head();
   const nums = w.blank ? [] : defectNumbers(f);
   if (w.blank) blankDefects(w, c, head);
   else if (!nums.length) {
     w.rect(M, w.y, CW, 30, { stroke: col.line, lw: 0.5 });
-    w.text('Es wurden keine Mängel festgestellt.', c.text[0] + 8, w.y - 18.5, { size: 9, color: col.ink });
+    w.text(NO_DEFECTS, c.text[0] + 8, w.y - 18.5, { size: 9, color: col.ink });
     w.gap(30);
   }
   nums.forEach((n, idx) => {
@@ -391,7 +391,7 @@ function sectionDefects(w, f) {
     const used = w.lines(ref, c.text[0] + 8, w.y - 7, { size: 7.6, lh: 9.5, color: col.grey });
     w.lines(tl, c.text[0] + 8, w.y - 7 - used - 2, { size: 8.6, lh: 11 });
     if (prio) {
-      const pc = { hoch: col.bad, mittel: col.warn, niedrig: col.ok }[prio[0]];
+      const pc = col[PRIO_COLORS[prio[0]]];
       w.page.drawCircle({ x: c.prio[0] + 14, y: w.y - h / 2, size: 4, color: pc });
       w.text(prio[1].toLowerCase(), c.prio[0] + 24, w.y - h / 2 - 3, { size: 8.6, font: w.bold, color: pc });
     }
@@ -405,11 +405,11 @@ function sectionDefects(w, f) {
 }
 
 async function sectionPhotos(w, f, photos, blobs) {
-  w.section('5 · FOTODOKUMENTATION', 'Fotodokumentation und Anlagen');
+  w.section(...SECTIONS.photos);
   if (w.blank) photos = Array.from({ length: 6 }, (_, i) => ({ slot: `leer${i}`, caption: '' }));
   if (!photos.length) {
     w.rrect(M, w.y, CW, 60, 6, { fill: col.soft, stroke: col.softLine });
-    w.text('Es wurden keine Fotos dokumentiert.', M + 16, w.y - 35, { size: 10, color: col.ink });
+    w.text(NO_PHOTOS, M + 16, w.y - 35, { size: 10, color: col.ink });
     return;
   }
   const items = [];
@@ -421,7 +421,7 @@ async function sectionPhotos(w, f, photos, blobs) {
   }
   const gap = 12;
   const pages = [];
-  for (let i = 0; i < items.length; i += 4) pages.push(items.slice(i, i + 4));
+  for (let i = 0; i < items.length; i += PHOTOS_PER_PAGE) pages.push(items.slice(i, i + PHOTOS_PER_PAGE));
   pages.forEach((chunk, pi) => {
     if (pi > 0) w.continuePage();
     const top = w.y;
@@ -472,15 +472,14 @@ function photoCard(w, { n, p, img }, x, top, cw, ch) {
 }
 
 function sectionResult(w, f) {
-  w.section('6 · ERGEBNIS DER PRÜFUNG', 'Ergebnis und fachliche Bewertung');
-  const accents = [col.ok, col.warn, col.bad, col.bad, col.blue];
+  w.section(...SECTIONS.result);
   ERGEBNIS.forEach(([key, title, desc], i) => {
     const on = f.pruefergebnis === key;
     const dl = wrap(w.font, 8.6, desc, CW - 74);
     const h = 14 + 14 + dl.length * 11 + 12;
     w.ensure(h + 8);
     w.rrect(M, w.y, CW, h, 6, { fill: on ? col.blueSoft : col.white, stroke: on ? col.blue : col.line, lw: on ? 1.4 : 0.8 });
-    w.rect(M + 10, w.y - 12, 4, h - 24, { fill: accents[i] });
+    w.rect(M + 10, w.y - 12, 4, h - 24, { fill: col[RESULT_ACCENTS[i]] });
     w.radio(M + 34, w.y - 22, on);
     w.regRadio('pruefergebnis', key, M + 34, w.y - 22);
     w.text(title, M + 52, w.y - 25, { size: 10, font: w.bold, color: col.navy });
@@ -492,7 +491,7 @@ function sectionResult(w, f) {
 }
 
 function sectionRemarks(w, f) {
-  w.section('7-8 · BEMERKUNGEN UND MASSNAHMEN', 'Bemerkungen, Empfehlungen und Nachprüfung');
+  w.section(...SECTIONS.remarks);
   const ls = { size: 10, font: w.bold, color: col.navy };
   w.flowBox('7. Bemerkungen', f.bemerkungen, { minH: 90, labelStyle: ls, name: 'bemerkungen' });
   w.flowBox('8. Empfehlungen / weitere Maßnahmen', f.empfehlungen, { minH: 90, labelStyle: ls, name: 'empfehlungen' });
@@ -516,7 +515,7 @@ function sectionRemarks(w, f) {
 }
 
 async function sectionClosing(w, f, blobs, doc) {
-  w.section('9 · ABSCHLUSS', 'Abschluss und nächste Prüfung');
+  w.section(...SECTIONS.closing);
   const cw = (CW - 16) / 2;
   const sigs = [];
   for (const n of [0, 1]) {
@@ -524,7 +523,7 @@ async function sectionClosing(w, f, blobs, doc) {
     if (blobs[`signature_${n}`]) { try { img = await doc.embedPng(blobs[`signature_${n}`]); } catch { img = null; } }
     sigs.push(img);
   }
-  const titles = ['Prüfer', 'Verantwortlicher Betreiber'];
+  const titles = SIGNERS;
   const ch = 214;
   w.ensure(ch + 10);
   [0, 1].forEach((n) => {
@@ -583,7 +582,7 @@ export async function buildPdf({ fields = {}, photos = [] } = {}, blobs = {}, { 
   await sectionClosing(w, f, blobs, doc);
 
   if (blank) w.buildForm();
-  w.finish('DHRW Engineering GmbH · Edisonallee 39 · 89231 Neu-Ulm · Tel. 0731 14113924 · info@dhrw.group');
+  w.finish(FOOTER);
   return doc.save();
 }
 

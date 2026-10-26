@@ -1,9 +1,9 @@
 // VERSION bei jeder Änderung an den Dateien erhöhen, damit installierte Apps sich aktualisieren.
-const VERSION = 'v9';
+const VERSION = 'v2.1.2';
 const CACHE = `protokoll-${VERSION}`;
 const ASSETS = [
-  './', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js', 'export-docx.js',
-  'pdf-lib.min.js', 'manifest.webmanifest', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
+  './', 'sw.js', 'index.html', 'styles.css', 'app.js', 'fields.js', 'db.js', 'export-pdf.js', 'export-docx.js', 'layout.js',
+  'pdf-lib.min.js', 'manifest.webmanifest', 'logo.png', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png',
   'vorlagen/Leeres_Pruefprotokoll.pdf', 'vorlagen/Leeres_Pruefprotokoll.docx',
 ];
 
