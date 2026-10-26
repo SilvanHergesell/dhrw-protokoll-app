@@ -188,5 +188,5 @@ canvas.sig { display: block; width: 100%; touch-action: none; }
 .row2 .btn, .grid2 .btn { min-width: 0; padding-inline: .5rem; }
 .sheet > *, .screen > * { min-width: 0; max-width: 100%; }
 .summary li { min-width: 0; overflow-wrap: anywhere; }
-.choice.check { margin-bottom: .6rem; }
-.choice.check:last-of-type { margin-bottom: 1.2rem; }
+.choice.check { margin-bottom: .9rem; }
+.choice.check:last-of-type { margin-bottom: 1.5rem; }

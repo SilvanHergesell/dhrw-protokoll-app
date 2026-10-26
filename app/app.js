@@ -147,7 +147,7 @@ async function renderList() {
   $app.replaceChildren(
     h('header', { class: 'top' }, h('span', { class: 'top-title' }, 'Prüfprotokolle')),
     h('main', { class: 'screen' },
-      h('button', { class: 'btn primary huge', onclick: () => createRecord(null, records[0]) }, icon('plus'), 'Neue Prüfung'),
+      h('button', { class: 'btn primary huge', onclick: () => createRecord() }, icon('plus'), 'Neue Prüfung'),
       records.length
         ? h('h2', { class: 'list-title' }, 'Meine Prüfungen')
         : h('p', { class: 'lead' }, 'Hier erscheinen Ihre Prüfungen. Tippen Sie auf „Neue Prüfung“, um zu beginnen.'),
@@ -186,7 +186,7 @@ async function cardMenu(r, records) {
     { label: 'Abbrechen', value: null },
   ]);
   if (v === 'copy') {
-    await createRecord(r, null, true);
+    await createRecord(r, true);
   } else if (v === 'del') {
     const sure = await ask('Wirklich löschen?', 'Alle Angaben und Fotos dieser Prüfung gehen verloren.', [
       { label: 'Ja, löschen', value: true, kind: 'danger' },
@@ -196,15 +196,13 @@ async function cardMenu(r, records) {
   }
 }
 
-const CARRY = ['dokument_nr', 'revision', 'pruefer', 'objekt', 'gebaeude_bereich', 'grundlagen_frei',
-  ...GRUNDLAGEN.map((_, i) => `grundlage_${i + 1}`)];
-const CARRY_COPY = [...CARRY, 'standort', 'treppen_nr', 'treppentyp', 'bauart', 'bauart_sonstige'];
+// Nur „Kopie erstellen“ übernimmt Angaben. Eine neue Prüfung startet leer.
+const CARRY_COPY = ['dokument_nr', 'revision', 'pruefer', 'objekt', 'gebaeude_bereich', 'grundlagen_frei',
+  ...GRUNDLAGEN.map((_, i) => `grundlage_${i + 1}`), 'standort', 'treppen_nr', 'treppentyp', 'bauart', 'bauart_sonstige'];
 
-// Neue Prüfung übernimmt Objekt, Prüfer und Grundlagen der letzten Prüfung.
-async function createRecord(copyOf, last, goToList) {
-  const src = copyOf || last;
+async function createRecord(copyOf, goToList) {
   const fields = {};
-  if (src) for (const k of copyOf ? CARRY_COPY : CARRY) if (src.fields[k]) fields[k] = src.fields[k];
+  if (copyOf) for (const k of CARRY_COPY) if (copyOf.fields[k]) fields[k] = copyOf.fields[k];
   fields.pruefdatum = today();
   const rec = { id: uid(), createdAt: Date.now(), updatedAt: Date.now(), fields, photos: [], pos: { step: 0, q: 0 } };
   await db.putRecord(rec);
