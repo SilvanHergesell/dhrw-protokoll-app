@@ -297,8 +297,9 @@ function render(keepScroll) {
       // Letzter Schritt: PDF und Word gleichrangig nebeneinander, „Zurück“ klein darüber
       : h('nav', { class: 'nav final' },
         h('button', { class: 'link back', onclick: () => go(...prev) }, icon('chevronLeft'), 'Zurück'),
-        h('button', { class: 'btn primary', onclick: (e) => exportFile(e.currentTarget, 'pdf') }, icon('file'), 'PDF erstellen'),
-        h('button', { class: 'btn ghost', onclick: (e) => exportFile(e.currentTarget, 'docx') }, icon('edit'), 'Word erstellen')));
+        h('p', { class: 'exp-label' }, 'Exportieren als'),
+        h('button', { class: 'btn primary', onclick: (e) => exportFile(e.currentTarget, 'pdf') }, icon('file'), 'PDF'),
+        h('button', { class: 'btn outline', onclick: (e) => exportFile(e.currentTarget, 'docx') }, icon('edit'), 'Word')));
   window.scrollTo(0, keepScroll ? y : 0);
 }
 
@@ -625,7 +626,7 @@ function signaturePad(slot) {
     canvas.width = Math.round(r.width * dpr);
     canvas.height = Math.round(r.width * 0.42 * dpr);
     canvas.style.height = `${r.width * 0.42}px`;
-    ctx.lineWidth = 3 * dpr; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#14215a';
+    ctx.lineWidth = 3 * dpr; ctx.lineCap = ctx.lineJoin = 'round'; ctx.strokeStyle = '#111111';
     const b = await db.getBlob(id, slot);
     if (!b) return;
     const bmp = await createImageBitmap(b);
