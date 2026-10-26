@@ -5,7 +5,6 @@ import {
 import * as db from './db.js';
 import { buildPdf } from './export-pdf.js';
 
-const APP_VERSION = '6';
 const $app = document.getElementById('app');
 
 // ---------- Hilfsfunktionen ----------
@@ -132,7 +131,17 @@ function blobUrl(blob) {
 
 // ---------- Startseite ----------
 
+// Die Version steht nur in sw.js (VERSION) und wird hier aus dem Namen des Caches gelesen.
+async function appVersion() {
+  try {
+    const names = await caches.keys();
+    return names.map((n) => n.match(/^protokoll-v(.+)$/)?.[1]).filter(Boolean).sort().pop();
+  } catch { return ''; }
+}
+
 async function renderList() {
+  const versionEl = h('p', { class: 'tiny' });
+  appVersion().then((v) => { if (v) versionEl.textContent = `Version ${v}`; });
   const records = await db.listRecords();
   records.forEach((r) => migrate(r));
   $app.replaceChildren(
@@ -153,7 +162,7 @@ async function renderList() {
       h('p', {}, 'Alles wird automatisch auf diesem Gerät gespeichert. Die App funktioniert auch ohne Internet.'),
       h('button', { class: 'link', onclick: templateMenu }, icon('download'), 'Leere Vorlage herunterladen'),
       location.search.includes('demo') && h('button', { class: 'link', onclick: createDemo }, 'Testdaten'),
-      h('p', { class: 'tiny' }, `Version ${APP_VERSION}`)));
+      versionEl));
 }
 
 // Leeres Formular zum Ausdrucken oder Bearbeiten am Computer (Dateien liegen im Ordner vorlagen).
